@@ -1,9 +1,12 @@
-An introduction on how to use webpagetest.org system.
+An introduction on how to use webpagetest system.
 
 = Introduction =
-
-TBD.
+  This document covers how to use webpagetest system though the browser. For instructions on how to automate using the HTTP API please check http://code.google.com/p/webpagetest/wiki/HowToAPI.
 
 
 = Details =
-TBD
+  1. Submitting a simple page load test
+  2. Interpreting the results
+  3. Submitting a slightly advanced test with page interactions
+  4. Customization
+  
