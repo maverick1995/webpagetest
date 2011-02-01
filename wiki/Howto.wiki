@@ -6,13 +6,9 @@ An introduction on how to use webpagetest system.
 
 = Details =
   1. Submitting a simple page load test
-----
   2. Interpreting the results
----- 
-  3. Submitting a slightly advanced test with page interactions
----- 
+  3. Submitting an interactive test
   4. Customization
----- 
 
 
   
