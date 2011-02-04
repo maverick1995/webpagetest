@@ -56,6 +56,7 @@ Usage examples:
       The execution loads the URLs from /foo/bar/urls.txt. All the tests are repeated 3 times with 384kbps upload bandwidth, 1500kbps download bandwidth, 100ms round-trip time, and packet loss rate 1%.
 
   c) ./wpt_batch.py --urlfile=/foo/urls.txt --script=/foo/script.txt
+      
       The content of /foo/urls.txt:
 
       http://www.gmail.com/
