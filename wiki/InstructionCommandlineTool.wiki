@@ -57,6 +57,7 @@ Usage examples:
 
   c) ./wpt_batch.py --urlfile=/foo/urls.txt --script=/foo/script.txt
       The content of /foo/urls.txt:
+
       http://www.gmail.com/
 
       The content of script.txt (NOTICE: the scripting file is tab separated.):
