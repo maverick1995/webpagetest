@@ -57,20 +57,20 @@ Usage examples:
 
   c) ./wpt_batch.py --urlfile=/foo/urls.txt --script=/foo/script.txt
       The content of /foo/urls.txt:
-           http://www.gmail.com/
+      http://www.gmail.com/
 
-      The content of script.txt:
-logData	0
+      The content of script.txt (NOTICE: the scripting file is tab separated.):
+      logData	0
 
-// bring up the login screen
-navigate	http://www.gmail.com
+      // bring up the login screen
+      navigate	http://www.gmail.com
 
-logData	1
+      logData	1
 
-// log in
-setValue	name=Email	latency.testing@gmail.com
-setValue	name=Passwd	tester123
-submitForm	id=gaia_loginform
+      // log in
+      setValue	name=Email	latency.testing@gmail.com
+      setValue	name=Passwd	tester123
+      submitForm	id=gaia_loginform
 
       The execution will use the login information in the script to enter that gmail account and the result shows the latency of the after-login page gotten loaded.
       
