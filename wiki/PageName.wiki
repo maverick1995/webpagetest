@@ -1,4 +1,3 @@
-</td></tr></table><script type="text/javascript"> if (window.showTocToggle) { var tocShowText = "show"; var tocHideText = "hide"; showTocToggle(); } </script> 
 <a name="Submitting_Test_Requests" id="Submitting_Test_Requests"></a><h1> <span class="mw-headline"> Submitting Test Requests </span></h1> 
 <p>You can submit tests to pagetest either by doing a POST or a GET to <a href="http://www.webpagetest.org/runtest.php" class="external free" title="http://www.webpagetest.org/runtest.php" rel="nofollow">http://www.webpagetest.org/runtest.php</a> 
 </p><p>In response you will either get redirected to the results page or you will get an xml response (depending on if xml was requested).
