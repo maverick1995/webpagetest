@@ -97,18 +97,18 @@ The supported profiles for the public instance are:
 <p>The XML response follows the format of REST API's.  You will get a HTTP 200 response to the request itself indicating that the request was parsed but the result of the submission itself will be in the XML.  See the samples for a full example XML response.
 </p> 
 <pre> 
-<response>;
-    <statusCode&gt;&lt;/statusCode&gt;
-    &lt;statusText&gt;&lt;/statusText&gt;
-    &lt;requestId&gt;&lt;/requestId&gt;
-    &lt;data&gt;
-        &lt;testId&gt;&lt;/testId&gt;
-        &lt;xmlUrl&gt;&lt;/xmlUrl&gt;
-        &lt;userUrl&gt;&lt;/userUrl&gt;
-        &lt;summaryCSV&gt;&lt;/summaryCSV&gt;
-        &lt;detailCSV&gt;&lt;/detailCSV&gt;
-    &lt;/data&gt;
-&lt;/response&gt;
+<response>
+    <statusCode></statusCode>
+    <statusText></statusText>
+    <requestId></requestId>
+    <data>
+        <testId></testId>
+        <xmlUrl></xmlUrl>
+        <userUrl></userUrl>
+        <summaryCSV></summaryCSV>
+        <detailCSV></detailCSV>
+    </data>
+</response>
 </pre> 
 <p><b>statusCode</b> - 200 indicates a successful submission.  Anything else is an error (and will come back as 400 with descriptive text)
 </p><p><b>statusText</b> - Descriptive error text explaining the failure
