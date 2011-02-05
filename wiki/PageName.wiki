@@ -4,8 +4,8 @@
 </p> 
 <a name="Parameters" id="Parameters"></a><h2> <span class="mw-headline"> Parameters </span></h2> 
 <table border="1" cellspacing="0" cellpadding="5"> 
-<caption> Parameters
-</caption><tr> 
+Parameters
+<tr> 
 <th> Parameter </th><th> Required </th><th> Description </th><th> Default
 </th></tr> 
 <tr> 
