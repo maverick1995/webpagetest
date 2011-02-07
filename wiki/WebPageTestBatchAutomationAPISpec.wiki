@@ -2,7 +2,7 @@ WPT batch automation API spec
 
 We plan to provide the following Python APIs to the WebPageTest (WPT) users to help them automate their batch testing job processing. No  tice your batch tests will be defined as a set of test ids once they are submitted.
 
-def ImportURLs(url_filename):
+def ImportUrls(url_filename):
   """Load the URLS in the file into memory.
 
   Args:
