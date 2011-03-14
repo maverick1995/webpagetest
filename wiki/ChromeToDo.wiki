@@ -2,12 +2,12 @@
 
 = wptdriver =
 
-  * Clear caches
-  * set browser window to correct size and always-on-top
+  * ~~Clear caches~~
+  * ~~set browser window to correct size and always-on-top~~
   * close any existing chrome instances before launching
-  * tcpdump
-  * traceroute
-  * dummynet support (and fail test if configuration fails)
+  * ~~tcpdump~~
+  * ~~traceroute~~
+  * ~~dummynet support (and fail test if configuration fails)~~
   * mutex to support running on the same system as urlblast
   * minimize at startup
   * scripting support
@@ -16,16 +16,16 @@
 
   * HTTPS
   * SPDY
-  * Filter loopback requests
-  * Include DNS times
-  * Include socket connect times
-  * Figure out how to detect the end of a socket connect
+  * ~~Filter loopback requests~~
+  * ~~Include DNS times~~
+  * ~~Include socket connect times~~
+  * ~~Figure out how to detect the end of a socket connect~~
   * Support error conditions for dns, socket, requests and pages
   * doc complete/fully loaded support
   * Custom end request
   * DOM Element waiting
-  * Save request headers
-  * Screen captures
+  * ~~Save request headers~~
+  * ~~Screen captures~~
   * Video capture
   * AFT
   * cpu/memory utilization
@@ -36,15 +36,15 @@
   * DNS override
  
   * Page Data Elements
-    * Bytes in/out (doc & fully loaded)
-    * Request counts
-    * TTFB
+    * ~~Bytes in/out (doc & fully loaded)~~
+    * ~~Request counts~~
+    * ~~TTFB~~
     * Start Render
 
-  * Object Data Elements
-    * Bytes in/out
-    * IP Address
-    * mime type, strip charset
+  * ~~Object Data Elements~~
+    * ~~Bytes in/out~~
+    * ~~IP Address~~
+    * ~~mime type, strip charset~~
  
 
 = Extension =
@@ -56,5 +56,5 @@
 
 = WebPagetest =
 
-  * Hide optimization scores and checklist when not checked
-  * Add support for drawing disconnected socket connections and DNS lookups (pre-connect)
+  * ~~Hide optimization scores and checklist when not checked~~
+  * ~~Add support for drawing disconnected socket connections and DNS lookups (pre-connect)~~
