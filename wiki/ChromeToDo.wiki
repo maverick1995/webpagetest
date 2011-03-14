@@ -35,11 +35,11 @@
   * Custom headers
   * DNS override
  
-  * Page Data Elements
+  * ~~Page Data Elements~~
     * ~~Bytes in/out (doc & fully loaded)~~
     * ~~Request counts~~
     * ~~TTFB~~
-    * Start Render
+    * ~~Start Render~~
 
   * ~~Object Data Elements~~
     * ~~Bytes in/out~~
