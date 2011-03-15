@@ -11,7 +11,7 @@
   * mutex to support running on the same system as urlblast
   * ~~minimize at startup~~
   * scripting support
-  * Upload tests as they complete
+  * ~~Upload tests as they complete~~
 
 = wpthook =
 
