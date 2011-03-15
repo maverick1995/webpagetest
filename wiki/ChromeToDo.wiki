@@ -9,7 +9,7 @@
   * ~~traceroute~~
   * ~~dummynet support (and fail test if configuration fails)~~
   * mutex to support running on the same system as urlblast
-  * minimize at startup
+  * ~~minimize at startup~~
   * scripting support
 
 = wpthook =
