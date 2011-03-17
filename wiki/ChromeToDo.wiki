@@ -13,6 +13,7 @@
   * scripting support
   * ~~Upload tests as they complete~~
   * Automatic update support
+  * Include PC name in work checks
 
 = wpthook =
 
