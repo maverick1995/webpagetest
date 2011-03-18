@@ -4,7 +4,6 @@
 
   * ~~Clear caches~~
   * ~~set browser window to correct size and always-on-top~~
-  * close any existing chrome instances before launching
   * ~~tcpdump~~
   * ~~traceroute~~
   * ~~dummynet support (and fail test if configuration fails)~~
