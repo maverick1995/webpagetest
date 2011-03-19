@@ -30,7 +30,7 @@
   * ~~Screen captures~~
   * Video capture
   * AFT
-  * cpu/memory utilization
+  * ~~cpu/memory utilization~~
   * Pagespeed integration
   * content blocking
   * HTTP basic auth
