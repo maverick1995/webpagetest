@@ -13,6 +13,7 @@
   * ~~Upload tests as they complete~~
   * Automatic update support
   * Include PC name in work checks
+  * Support video rendering jobs
 
 = wpthook =
 
@@ -28,7 +29,7 @@
   * DOM Element waiting
   * ~~Save request headers~~
   * ~~Screen captures~~
-  * Video capture
+  * ~~Video capture~~
   * AFT
   * ~~cpu/memory utilization~~
   * Pagespeed integration
