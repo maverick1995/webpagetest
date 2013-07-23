@@ -313,6 +313,11 @@ if( !strcasecmp('Test Result', $tab) && !@$nosubheader && !defined('EMBED') )
             $tabs['PageSpeed'] = "/pagespeed.php?test=$id&run=$gradeRun&cached=$cached$end";
         $tabs['Content Breakdown'] = "/breakdown.php?test=$id&run=$gradeRun&cached=$cached$end";
         $tabs['Domains'] = "/domains.php?test=$id&run=$gradeRun&cached=$cached$end";
+        if (array_key_exists('testinfo', $test) &&
+            array_key_exists('timeline', $test['testinfo']) &&
+            $test['testinfo']['timeline'] &&
+            gz_is_file("$testPath/$gradeRun{$cTxt2}_devtools.json"))
+            $tabs['Processing Breakdown'] = "/breakdownTimeline.php?test=$id&run=$gradeRun&cached=$cached$end";
         
         if( !isset($test['testinfo']) || !$test['testinfo']['noimages'] )
             $tabs['Screen Shot'] = "/screen_shot.php?test=$id&run=$gradeRun&cached=$cached$end";
@@ -382,12 +387,5 @@ function GetGrades(&$pageData, &$test, $id, $run)
 }
 ?>
 <script type="text/javascript">
-  if (window['performance'] != undefined) {
-    if (performance.mark)
-      performance.mark("Header finished");
-    else if (performance.webkitMark)
-      performance.webkitMark("Header finished");
-  }
-  if (console != undefined && console.timeStamp)
-    console.timeStamp("Header finished");
+  markUserTime('aft.Site Header');
 </script>

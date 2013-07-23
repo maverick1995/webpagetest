@@ -89,27 +89,35 @@ else
         }
         echo "<average>\n";
         echo "<firstView>\n";
-        foreach( $fv as $key => $val )
-            echo "<$key>" . number_format($val,0, '.', '') . "</$key>\n";
+        foreach( $fv as $key => $val ) {
+          $key = preg_replace('/[^a-zA-Z0-9\.\-_]/', '_', $key);
+          echo "<$key>" . number_format($val,0, '.', '') . "</$key>\n";
+        }
         echo "</firstView>\n";
         if( isset($rv) )
         {
             echo "<repeatView>\n";
-            foreach( $rv as $key => $val )
-                echo "<$key>" . number_format($val,0, '.', '') . "</$key>\n";
+            foreach( $rv as $key => $val ) {
+              $key = preg_replace('/[^a-zA-Z0-9\.\-_]/', '_', $key);
+              echo "<$key>" . number_format($val,0, '.', '') . "</$key>\n";
+            }
             echo "</repeatView>\n";
         }
         echo "</average>\n";
         echo "<standardDeviation>\n";
         echo "<firstView>\n";
-        foreach( $fv as $key => $val )
-            echo "<$key>" . PageDataStandardDeviation($pageData, $key, 0) . "</$key>\n";
+        foreach( $fv as $key => $val ) {
+          $key = preg_replace('/[^a-zA-Z0-9\.\-_]/', '_', $key);
+          echo "<$key>" . PageDataStandardDeviation($pageData, $key, 0) . "</$key>\n";
+        }
         echo "</firstView>\n";
         if( isset($rv) )
         {
             echo "<repeatView>\n";
-            foreach( $rv as $key => $val )
-                echo "<$key>" . PageDataStandardDeviation($pageData, $key, 1) . "</$key>\n";
+            foreach( $rv as $key => $val ) {
+              $key = preg_replace('/[^a-zA-Z0-9\.\-_]/', '_', $key);
+              echo "<$key>" . PageDataStandardDeviation($pageData, $key, 1) . "</$key>\n";
+            }
             echo "</repeatView>\n";
         }
         echo "</standardDeviation>\n";
@@ -121,8 +129,10 @@ else
             echo "<median>\n";
             echo "<firstView>\n";
             echo "<run>$fvMedian</run>\n";
-            foreach( $pageData[$fvMedian][0] as $key => $val )
-                echo "<$key>" . xml_entities($val) . "</$key>\n";
+            foreach( $pageData[$fvMedian][0] as $key => $val ) {
+              $key = preg_replace('/[^a-zA-Z0-9\.\-_]/', '_', $key);
+              echo "<$key>" . xml_entities($val) . "</$key>\n";
+            }
             if( $pagespeed )
             {
                 $score = GetPageSpeedScore("$testPath/{$fvMedian}_pagespeed.txt");
@@ -147,8 +157,10 @@ else
                 {
                     echo "<repeatView>\n";
                     echo "<run>$rvMedian</run>\n";
-                    foreach( $pageData[$rvMedian][1] as $key => $val )
-                        echo "<$key>" . xml_entities($val) . "</$key>\n";
+                    foreach( $pageData[$rvMedian][1] as $key => $val ) {
+                      $key = preg_replace('/[^a-zA-Z0-9\.\-_]/', '_', $key);
+                      echo "<$key>" . xml_entities($val) . "</$key>\n";
+                    }
                     if( $pagespeed )
                     {
                         $score = GetPageSpeedScore("$testPath/{$rvMedian}_Cached_pagespeed.txt");
@@ -183,8 +195,10 @@ else
                 {
                     echo "<firstView>\n";
                     echo "<results>\n";
-                    foreach( $pageData[$i][0] as $key => $val )
-                        echo "<$key>" . xml_entities($val) . "</$key>\n";
+                    foreach( $pageData[$i][0] as $key => $val ) {
+                      $key = preg_replace('/[^a-zA-Z0-9\.\-_]/', '_', $key);
+                      echo "<$key>" . xml_entities($val) . "</$key>\n";
+                    }
                     if( $pagespeed )
                     {
                         $score = GetPageSpeedScore("$testPath/{$i}_pagespeed.txt");
@@ -232,7 +246,7 @@ else
                     // raw results
                     echo "<rawData>";
                     echo "<headers>http://$host$uri$path/{$i}_report.txt</headers>\n";
-                    if (array_key_exists('bodies', $test['testinfo']) && $test['testinfo']['bodies']) {
+                    if (is_file("$testPath/{$i}_bodies.zip")) {
                         echo "<bodies>http://$host$uri$path/{$i}_bodies.zip</bodies>\n";
                     }
                     echo "<pageData>http://$host$uri$path/{$i}_IEWPG.txt</pageData>\n";
@@ -242,13 +256,13 @@ else
                     echo "</rawData>\n";
                     
                     // video frames
+                    $progress = GetVisualProgress($testPath, $i, 0);
                     if( (array_key_exists('video', $test['test']) && $test['test']['video']) ||
                         (array_key_exists('video', $test['testinfo']) && $test['testinfo']['video']) )
                     {
                         loadVideo("$testPath/video_{$i}", $frames);
                         if( $frames && count($frames) )
                         {
-                            $progress = GetVisualProgress($testPath, $i, 0);
                             echo "<videoFrames>\n";
                             foreach( $frames as $time => $frameFile )
                             {
@@ -265,6 +279,16 @@ else
                             echo "</videoFrames>\n";
                         }
                     }
+                    if (isset($progress) &&
+                        is_array($progress) &&
+                        array_key_exists('DevTools', $progress) &&
+                        is_array($progress['DevTools']) &&
+                        array_key_exists('processing', $progress['DevTools'])) {
+                        echo "<processing>\n";
+                        foreach ($progress['DevTools']['processing'] as $key => $value)
+                          echo "<$key>$value</$key>\n";
+                        echo "</processing>\n";
+                    }
                     
                     xmlDomains($id, $testPath, $i, 0);
                     xmlBreakdown($id, $testPath, $i, 0);
@@ -279,8 +303,10 @@ else
                 {
                     echo "<repeatView>\n";
                     echo "<results>\n";
-                    foreach( $pageData[$i][1] as $key => $val )
-                        echo "<$key>" . xml_entities($val) . "</$key>\n";
+                    foreach( $pageData[$i][1] as $key => $val ) {
+                      $key = preg_replace('/[^a-zA-Z0-9\.\-_]/', '_', $key);
+                      echo "<$key>" . xml_entities($val) . "</$key>\n";
+                    }
                     if( $pagespeed )
                     {
                         $score = GetPageSpeedScore("$testPath/{$i}_Cached_pagespeed.txt");
@@ -318,7 +344,7 @@ else
                     // raw results
                     echo "<rawData>\n";
                     echo "<headers>http://$host$uri$path/{$i}_Cached_report.txt</headers>\n";
-                    if (array_key_exists('bodies', $test['testinfo']) && $test['testinfo']['bodies']) {
+                    if (is_file("$testPath/{$i}_Cached_bodies.zip")) {
                         echo "<bodies>http://$host$uri$path/{$i}_Cached_bodies.zip</bodies>\n";
                     }
                     echo "<pageData>http://$host$uri$path/{$i}_Cached_IEWPG.txt</pageData>\n";
@@ -328,13 +354,13 @@ else
                     echo "</rawData>\n";
                     
                     // video frames
+                    $progress = GetVisualProgress($testPath, $i, 1);
                     if( (array_key_exists('video', $test['test']) && $test['test']['video']) ||
                         (array_key_exists('video', $test['testinfo']) && $test['testinfo']['video']) )
                     {
                         loadVideo("$testPath/video_{$i}_cached", $frames);
                         if( $frames && count($frames) )
                         {
-                            $progress = GetVisualProgress($testPath, $i, 1);
                             echo "<videoFrames>\n";
                             foreach( $frames as $time => $frameFile )
                             {
@@ -350,6 +376,16 @@ else
                             }
                             echo "</videoFrames>\n";
                         }
+                    }
+                    if (isset($progress) &&
+                        is_array($progress) &&
+                        array_key_exists('DevTools', $progress) &&
+                        is_array($progress['DevTools']) &&
+                        array_key_exists('processing', $progress['DevTools'])) {
+                        echo "<processing>\n";
+                        foreach ($progress['DevTools']['processing'] as $key => $value)
+                          echo "<$key>$value</$key>\n";
+                        echo "</processing>\n";
                     }
                     
                     xmlDomains($id, $testPath, $i, 1);
