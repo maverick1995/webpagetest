@@ -54,6 +54,7 @@
             $test = json_decode(gz_file_get_contents("$path/testinfo.json"), true);
             unset($test['completed']);
             unset($test['started']);
+            unset($test['tester']);
         }
         
         // pull in the test parameters
@@ -120,6 +121,7 @@
             $test['pngss'] = (int)$req_pngss;
             $test['iq'] = (int)$req_iq;
             $test['bodies'] = $req_bodies;
+            $test['htmlbody'] = $req_htmlbody;
             $test['time'] = (int)$req_time;
             $test['clear_rv'] = (int)$req_clearRV;
             $test['keepua'] = 0;
@@ -139,9 +141,17 @@
             
             // custom options
             $test['cmdLine'] = '';
-            $test['addCmdLine'] = '';
-            if (isset($req_disableThreadedParser) && $req_disableThreadedParser)
+            $test['addCmdLine'] = $req_cmdline;
+            if (isset($req_disableThreadedParser) && $req_disableThreadedParser) {
+              if (strlen($test['addCmdLine']))
+                $test['addCmdLine'] .= ' ';
               $test['addCmdLine'] .= '--disable-threaded-html-parser';
+            }
+            if (isset($req_spdyNoSSL) && $req_spdyNoSSL) {
+              if (strlen($test['addCmdLine']))
+                $test['addCmdLine'] .= ' ';
+              $test['addCmdLine'] .= '--use-spdy=no-ssl';
+            }
             
             // see if we need to process a template for these requests
             if (isset($req_k) && strlen($req_k)) {
@@ -301,6 +311,15 @@
         ValidateKey($test, $error);
         if( !strlen($error) && CheckIp($test) && CheckUrl($test['url']) )
         {
+            if (isset($req_cmdline) && strlen($req_cmdline)) {
+              $req_cmdline = trim($req_cmdline);
+              if (!preg_match('/^--[a-zA-Z0-9\-\.\+=,_ "]+$/', $req_cmdline)) {
+                $error = 'Invalid command-line options';
+                $req_cmdline = '';
+              }
+            } else
+              $req_cmdline = '';
+
             if( !$error && !$test['batch'] )
               ValidateParameters($test, $locations, $error);
               
@@ -874,6 +893,7 @@ function ValidateParameters(&$test, $locations, &$error, $destination_url = null
             $test['sensitive'] = $test['sensitive'] ? 1 : 0;
             $test['pngss'] = $test['pngss'] ? 1 : 0;
             $test['bodies'] = $test['bodies'] ? 1 : 0;
+            $test['htmlbody'] = $test['htmlbody'] ? 1 : 0;
             $test['pss_advanced'] = $test['pss_advanced'] ? 1 : 0;
             $test['noheaders'] = $test['noheaders'] ? 1 : 0;
             $test['aft'] = 0;
@@ -1405,7 +1425,7 @@ function CheckIp(&$test)
     global $user;
     global $usingAPI;
     $date = gmdate("Ymd");
-    if (!isset($user) && !$usingAPI) {
+    if (!$usingAPI) {
         $ip2 = @$test['ip'];
         $ip = $_SERVER['REMOTE_ADDR'];
         $blockIps = file('./settings/blockip.txt', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
@@ -1640,6 +1660,8 @@ function CreateTest(&$test, $url, $batch = 0, $batch_locations = 0)
                 $testFile .= "imageQuality={$settings['iq']}\r\n";
             if( $test['bodies'] )
                 $testFile .= "bodies=1\r\n";
+            if( $test['htmlbody'] )
+                $testFile .= "htmlbody=1\r\n";
             if( $test['time'] )
                 $testFile .= "time={$test['time']}\r\n";
             if( $test['clear_rv'] )
