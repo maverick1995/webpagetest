@@ -1,5 +1,5 @@
 <?php
-$DevToolsCacheVersion = '1.0';
+$DevToolsCacheVersion = '1.1';
 $eventList = array();
 
 if(extension_loaded('newrelic')) { 
@@ -197,7 +197,7 @@ function ProcessPaintEntry(&$entry, &$fullScreen, &$regions, $frame, &$didLayout
             $entry['data']['x'] = $entry['data']['clip'][0];
             $entry['data']['y'] = $entry['data']['clip'][1];
             $entry['data']['width'] = $entry['data']['clip'][4] - $entry['data']['clip'][0];
-            $entry['data']['height'] = $entry['data']['clip'][4] - $entry['data']['clip'][1];
+            $entry['data']['height'] = $entry['data']['clip'][5] - $entry['data']['clip'][1];
           }
           if (array_key_exists('width', $entry['data']) &&
               array_key_exists('height', $entry['data']) &&
@@ -774,6 +774,7 @@ function DevToolsGetConsoleLog($testPath, $run, $cached) {
           is_array($event['message']))
           $console_log[] = $event['message'];
     }
+    gz_file_put_contents($console_log_file, json_encode($console_log));
   }
   return $console_log;
 }
