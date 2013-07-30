@@ -133,7 +133,7 @@ $page_description = "Website performance test result$testLabel.";
                     echo '<br><a href="/export.php?test=' . $id . '">Export HTTP Archive (.har)</a>';
                     if( array_key_exists('showslow', $test['testinfo']) && $test['testinfo']['showslow'] && strlen($settings['showslow']) )
                         echo '<br><a href="'.$settings['showslow'].'/details/?url='.urlencode(FixUrlSlash($url)).'#webpagetest' . '">See in ShowSlow</a>';
-		            if( is_dir('./google') && $settings['enable_google_csi'] )
+		            if( is_dir('./google') && array_key_exists('enable_google_csi', $settings) && $settings['enable_google_csi'] )
 			            echo '<br><a href="/google/view_csi.php?test=' . $id . '">View CSI data</a>';
                     if( array_key_exists('publishTo', $settings) && $settings['publishTo'] )
                         echo "<br><a href=\"/publish.php?test=$id\">Publish to {$settings['publishTo']}</a>";
@@ -704,6 +704,7 @@ function LookupError($error)
         case 99997: $errorText = "Timed Out"; break;
         case 99998: $errorText = "Timed Out"; break;
         case 88888: $errorText = "Script Error"; break;
+        case 12999: $errorText = "Navigation Error"; break;
         case -2146697211: $errorText = "Failed to Connect"; break;
     }
     
