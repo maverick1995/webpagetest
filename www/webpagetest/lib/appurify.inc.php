@@ -29,14 +29,32 @@ class Appurify{
   * Get a list of the available devices
   */
   public function GetDevices() {
-    $devices = array();
-    $list = $this->Get('https://live.appurify.com/resource/devices/list/');
-    if ($list !== false && is_array($list)) {
-      foreach($list as $device) {
-        $name = "{$device['brand']} {$device['name']} {$device['os_name']} {$device['os_version']}";
-        $devices[$device['device_type_id']] = $name;
-      }
+    $devices = null;
+    $this->Lock();
+    $ttl = 120;
+    if (is_file("./tmp/appurify_{$this->key}.devices")) {
+      $cache = json_decode(file_get_contents("./tmp/appurify_{$this->key}.devices"), true);
+      $now = time();
+      if ($cache &&
+          is_array($cache) &&
+          array_key_exists('devices', $cache) &&
+          array_key_exists('time', $cache) &&
+          $now >= $cache['time'] &&
+          $now - $cache['time'] < $ttl / 2)
+        $devices = $cache['devices'];
     }
+    if (!isset($devices)) {
+      $devices = array();
+      $list = $this->Get('https://live.appurify.com/resource/devices/list/');
+      if ($list !== false && is_array($list)) {
+        foreach($list as $device) {
+          $name = "{$device['brand']} {$device['name']} {$device['os_name']} {$device['os_version']}";
+          $devices[$device['device_type_id']] = $name;
+        }
+      }
+      file_put_contents("./tmp/appurify_{$this->key}.devices", json_encode(array('devices' => $devices, 'time' => time())));
+    }
+    $this->Unlock();
     return $devices;
   }
   
@@ -134,18 +152,22 @@ class Appurify{
       $zip->close();
     }
     if (isset($tempdir) && is_dir($tempdir)) {
-      if (is_file("$tempdir/appurify_results/video.mov"))
-        rename("$tempdir/appurify_results/video.mov", "$testPath/{$index}_video.mov");
+      $this->ProcessScreenShot($test, $tempdir, $testPath, $index);
+      $this->ProcessVideo($test, $tempdir, $testPath, $index);
       $devtools = array();
       $files = glob("$tempdir/appurify_results/WSData*");
       if (isset($files) && is_array($files) && count($files)) {
         $outfile = fopen("$testPath/{$index}_devtools.json", 'w');
+        $raw = fopen("$testPath/{$index}_devtools.raw.json", 'w');
         if ($outfile) {
           fwrite($outfile, "[");
+          fwrite($raw, "[");
           foreach ($files as $file)
-            $this->ProcessDevTools($file, $outfile);
+            $this->ProcessDevTools($file, $outfile, $raw);
           fwrite($outfile, "{}]");
           fclose($outfile);
+          fwrite($raw, "{}]");
+          fclose($raw);
           gz_compress("$testPath/{$index}_devtools.json");
           if (is_file("$testPath/{$index}_devtools.json.gz"))
             unlink("$testPath/{$index}_devtools.json");
@@ -155,10 +177,43 @@ class Appurify{
     }
   }
   
-  protected function ProcessDevTools($file, $outfile) {
+  protected function ProcessScreenShot(&$test, $tempdir, $testPath, $index) {
+    if (is_file("$tempdir/appurify_results/Run 1/Screenshot_Tabs.png.png"))
+      rename("$tempdir/appurify_results/Run 1/Screenshot_Tabs.png.png", "$testPath/{$index}_screen.png");
+    elseif (is_file("$tempdir/appurify_results/Run 1/Screenshot_Tabs.png"))
+      rename("$tempdir/appurify_results/Run 1/Screenshot_Tabs.png", "$testPath/{$index}_screen.png");
+    elseif (is_file("$tempdir/appurify_results/Run 1/Screenshot_Timeline.png.png"))
+      rename("$tempdir/appurify_results/Run 1/Screenshot_Timeline.png.png", "$testPath/{$index}_screen.png");
+    elseif (is_file("$tempdir/appurify_results/Run 1/Screenshot_Timeline.png"))
+      rename("$tempdir/appurify_results/Run 1/Screenshot_Timeline.png", "$testPath/{$index}_screen.png");
+    if (is_file("$testPath/{$index}_screen.png")) {
+      $img = imagecreatefrompng("$testPath/{$index}_screen.png");
+      if ($img) {
+        imageinterlace($img, 1);
+        $quality = 75;
+        if (array_key_exists('iq', $test) && $test['iq'] >= 30 && $test['iq'] < 100)
+          $quality = $test['iq'];
+        imagejpeg($img, "$testPath/{$index}_screen.jpg", $quality);
+        imagedestroy($img);
+      }
+      $keep_png = false;
+      if (array_key_exists('pngss', $test) && $test['pngss'])
+        $keep_png = true;
+      if (!$keep_png)
+        unlink("$testPath/{$index}_screen.png");
+    }
+  }
+  
+  protected function ProcessVideo(&$test, $tempdir, $testPath, $index) {
+    if (is_file("$tempdir/appurify_results/video.mov"))
+      rename("$tempdir/appurify_results/video.mov", "$testPath/{$index}_video.mov");
+  }
+
+  protected function ProcessDevTools($file, $outfile, $raw) {
     $f = fopen($file, 'r');
     if ($f) {
       $buffer = '';
+      $started = false;
       do {
         $line = fgets($f);
         if ($line === false ||
@@ -171,8 +226,37 @@ class Appurify{
             if (isset($event) &&
                 is_array($event) &&
                 array_key_exists('method', $event)) {
-              fwrite($outfile, json_encode($event));
-              fwrite($outfile, ',');
+              // filter-out the pre-test events
+              if (!$started) {
+                $url = null;
+                if ($event['method'] == 'Timeline.eventRecorded') {
+                  if (array_key_exists('params', $event) &&
+                      is_array($event['params']) &&
+                      array_key_exists('record', $event['params']) &&
+                      is_array($event['params']['record']) &&
+                      array_key_exists('type', $event['params']['record']) &&
+                      $event['params']['record']['type'] == 'ResourceSendRequest' &&
+                      array_key_exists('data', $event['params']['record']) &&
+                      is_array($event['params']['record']['data']) &&
+                      array_key_exists('url', $event['params']['record']['data']))
+                    $url = $event['params']['record']['data']['url'];
+                } elseif ($event['method'] == 'Network.requestWillBeSent') {
+                  if (array_key_exists('params', $event) &&
+                      is_array($event['params']) &&
+                      array_key_exists('request', $event['params']) &&
+                      is_array($event['params']['request']) &&
+                      array_key_exists('url', $event['params']['request']))
+                    $url = $event['params']['request']['url'];
+                }
+                if (isset($url) && strpos(substr($url, 0, 25), 'localhost') === false)
+                  $started = true;
+              }
+              if ($started) {
+                fwrite($outfile, json_encode($event));
+                fwrite($outfile, ",\n");
+              }
+              fwrite($raw, json_encode($event));
+              fwrite($raw, ",\n");
             }
           }
           $buffer = '';
