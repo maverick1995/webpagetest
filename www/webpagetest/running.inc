@@ -85,6 +85,7 @@
             var testId = "<?php echo $id; ?>";
             <?php
             $polling_interval_testing = 1000;
+            $polling_interval = 15000;
             if (array_key_exists('testinfo', $test) &&
                 array_key_exists('loc_type', $test['testinfo']) &&
                 $test['testinfo']['loc_type'] == 'Appurify') {
