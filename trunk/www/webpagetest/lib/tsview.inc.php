@@ -4,6 +4,7 @@
 */
 function TSViewPostResult(&$test, $id, $testPath, $server, $tsview_name) {
   require_once('page_data.inc');
+  $tsview_name = str_replace(':', '/', $tsview_name);
   
   $runs = $test['runs'];
   if (array_key_exists('discard', $test) &&
