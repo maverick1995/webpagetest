@@ -51,13 +51,12 @@ $page_description = "Comparison Test$testLabel.";
             <input type="hidden" name="shard" value="1">
             <input type="hidden" name="priority" value="0">
             <input type="hidden" name="timeline" value="1">
-            <input type="hidden" name="mv" value="1">
             <input type="hidden" name="fvonly" value="1">
             <input type="hidden" name="sensitive" value="1">
             <input type="hidden" name="web10" value="1">
             <input type="hidden" id="script" name="script" value="setDnsName&#09;%HOSTR%&#09;spdypss-proxy.ext.google.com&#10;overrideHost&#09;%HOSTR%&#09;spdypss-proxy.ext.google.com&#10;navigate&#09;%URL%">
-            <input type="hidden" name="runs" value="8">
-            <input type="hidden" name="discard" value="1">
+            <input type="hidden" name="runs" value="10">
+            <input type="hidden" name="discard" value="3">
             <input type="hidden" name="bulkurls" value="">
             <input type="hidden" name="vo" value="<?php echo $owner;?>">
             <?php
