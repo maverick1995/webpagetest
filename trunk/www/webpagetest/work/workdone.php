@@ -21,7 +21,7 @@ header('Content-type: text/plain');
 header("Cache-Control: no-cache, must-revalidate");
 header("Expires: Sat, 26 Jul 1997 05:00:00 GMT");
 ignore_user_abort(true);
-set_time_limit(60*5*10);
+set_time_limit(60*5);
 require_once('harTiming.inc');
 require_once('./video/avi2frames.inc.php');
 
@@ -35,6 +35,8 @@ if(extension_loaded('newrelic')) {
   newrelic_add_custom_parameter('test', $id);
   newrelic_add_custom_parameter('location', $location);
 }
+
+//logmsg(json_encode($_REQUEST), './work/workdone.log', true);
 
 // The following params have a default value:
 $done = arrayLookupWithDefault('done', $_REQUEST, false);
@@ -253,7 +255,7 @@ if( array_key_exists('video', $_REQUEST) && $_REQUEST['video'] )
         // pre-process any background processing we need to do for this run
         if (isset($runNumber) && isset($cacheWarmed)) {
             loadPageRunData($testPath, $runNumber, $cacheWarmed);
-            ProcessAVIVideo($testPath, $runNumber, $cacheWarmed);
+            ProcessAVIVideo($testInfo, $testPath, $runNumber, $cacheWarmed);
         }
             
         // see if the test is complete
@@ -289,11 +291,9 @@ if( array_key_exists('video', $_REQUEST) && $_REQUEST['video'] )
                 for ($i = 1; $i <= $testInfo['runs']; $i++) {
                     getBreakdown($id, $testPath, $i, 0, $requests);
                     GetVisualProgress($testPath, $i, 0);
-                    DevToolsGetConsoleLog($testPath, $i, 0);
                     if (!$testInfo['fvonly']) {
                         getBreakdown($id, $testPath, $i, 1, $requests);
                         GetVisualProgress($testPath, $i, 1);
-                        DevToolsGetConsoleLog($testPath, $i, 1);
                     }
                 }
             }

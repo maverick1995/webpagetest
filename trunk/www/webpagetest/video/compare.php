@@ -67,6 +67,9 @@ else
             <?php
                 if( !$ready )
                 {
+                  $autoRefresh = true;
+                  $noanalytics = true;
+
             ?>
                 <noscript>
                 <meta http-equiv="refresh" content="10" />
@@ -145,6 +148,7 @@ else
                     <?php
                         echo "color: #$color;\n"
                     ?>
+                    word-wrap: break-word;
                 }
                 .thumb{ border: none; }
                 .thumbChanged{border: 3px solid #FEB301;}
@@ -195,6 +199,10 @@ else
                 {
                     padding-top: 1em;
                     padding-left: 2em;
+                }
+                #statusTable a
+                {
+                    color: inherit;
                 }
                 #image
                 {
@@ -593,13 +601,22 @@ function ScreenShotTable()
         </div>
         <?php
         // display the waterfall if there is only one test
-        if( count($tests) == 1 )
-        {
+        if( count($tests) == 1 ) {
             $data = loadPageRunData($tests[0]['path'], $tests[0]['run'], $tests[0]['cached']);
             $secure = false;
             $haveLocations = false;
             $requests = getRequests($tests[0]['id'], $tests[0]['path'], $tests[0]['run'], $tests[0]['cached'], $secure, $haveLocations, true, true);
             InsertWaterfall('', $requests, $tests[0]['id'], $tests[0]['run'], $tests[0]['cached'], $data, "&max=$filmstrip_end_time&mime=1&state=1&cpu=0&bw=0" );
+            echo '<br><br>';
+        } else {
+          $waterfalls = array();
+          foreach ($tests as &$test) {
+            $waterfalls[] = array('id' => $test['id'],
+                                  'label' => $test['name'],
+                                  'run' => $test['run'],
+                                  'cached' => $test['cached']);
+          }
+          InsertMultiWaterfall($waterfalls, "&max=$filmstrip_end_time&mime=1&state=1&cpu=0&bw=0");
         }
         ?>
         
@@ -625,7 +642,6 @@ function ScreenShotTable()
             <input id="advanced-ok" type=button class="simplemodal-close" value="OK">
         </div>
         <?php
-        echo '<br><br>';
         } // EMBED
         // scroll the table to show the first thumbnail change
         $scrollPos = $firstFrame * ($thumbSize + 8);
@@ -650,7 +666,7 @@ function DisplayStatus()
     echo "<table id=\"statusTable\"><tr><th>Test</th><th>Status</th></tr><tr>";
     foreach($tests as &$test)
     {
-        echo "<tr><td>{$test['name']}</td><td>";
+        echo "<tr><td><a href="/result/{$test['id']}/">{$test['name']}</a></td><td>";
         if( $test['done'] )
             echo "Done";
         elseif( $test['started'] )
@@ -695,7 +711,8 @@ function DisplayGraphs() {
                         'SpeedIndexDT' => 'Speed Index (Dev Tools)',
                         'TTFB' => 'Time to First Byte', 
                         'titleTime' => 'Time to Title', 
-                        'render' => 'Time to Start Render');
+                        'render' => 'Time to Start Render',
+                        'fullyLoadedCPUms' => 'CPU Busy Time');
     $progress_end = 0;
     $has_speed_index_dt = false;
     $testCount = count($tests);

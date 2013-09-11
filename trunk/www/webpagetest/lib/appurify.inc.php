@@ -103,9 +103,9 @@ class Appurify{
             }
           }
         } else
-          $error = "Error configuring URL and browser through Appurify API";
+          $error = "Error configuring URL and browser through Appurify API for test ID $test_id";
       } else
-        $error = "Error configuring test through Appurify API";
+        $error = "Error configuring test through Appurify API for App ID $app_id";
     } else
       $error = "Error configuring application through Appurify API";
     return $ret;
@@ -124,8 +124,16 @@ class Appurify{
             is_array($status) &&
             array_key_exists('status', $status)) {
           $run['status'] = $status['status'];
-          if ($status['status'] == 'complete')
+          if ($status['status'] == 'complete') {
+            if (array_key_exists('results', $status) &&
+                is_array($status['results']) &&
+                array_key_exists('output', $status['results']) &&
+                preg_match('/Video start time: (?P<video>[0-9\.]+)/i', $status['results']['output'], $matches) &&
+                is_array($matches) &&
+                array_key_exists('video', $matches))
+              $run['video_start'] = floatval($matches['video']);
             $this->GetFile('https://live.appurify.com/resource/tests/result/', $file, array('run_id' => $run['id']));
+          }
           $ret = true;
         }
       }
@@ -133,8 +141,7 @@ class Appurify{
         $ret = true;
         if ($this->ProcessResult($test, $run, $index, $testPath))
           $run['completed'] = true;
-        else
-          unlink($file);
+        //unlink($file);
       }
     }
     return $ret;
@@ -156,9 +163,9 @@ class Appurify{
       $ok = true;
       $this->ProcessScreenShot($test, $tempdir, $testPath, $index);
       $this->ProcessVideo($test, $tempdir, $testPath, $index);
+      $this->ProcessPcap($test, $tempdir, $testPath, $index);
       $devtools = array();
-      //$files = glob("$tempdir/appurify_results/WSData*");
-      $files = array('C:/Users/pmeenan/Desktop/network.json', 'C:/Users/pmeenan/Desktop/timeline.json');
+      $files = glob("$tempdir/appurify_results/WSData*");
       if (isset($files) && is_array($files) && count($files)) {
         $outfile = fopen("$testPath/{$index}_devtools.json", 'w');
         if ($outfile) {
@@ -205,29 +212,51 @@ class Appurify{
   }
   
   protected function ProcessVideo(&$test, $tempdir, $testPath, $index) {
-    if (is_file("$tempdir/appurify_results/video.mov"))
-      rename("$tempdir/appurify_results/video.mov", "$testPath/{$index}_video.mov");
+    if (is_file("$tempdir/appurify_results/video.mp4")) {
+      rename("$tempdir/appurify_results/video.mp4", "$testPath/{$index}_video.mp4");
+      require_once('./video/avi2frames.inc.php');
+      ProcessAVIVideo($test, $testPath, $index, 0);
+    }
   }
 
+  protected function ProcessPcap(&$test, $tempdir, $testPath, $index) {
+    if (is_file("$tempdir/appurify_results/network.pcap"))
+      rename("$tempdir/appurify_results/network.pcap", "$testPath/{$index}.cap");
+  }
+  
   protected function ProcessDevTools($file, $outfile) {
-    $len = filesize($file);
-    if ($len > 2) {
-      $f = fopen($file, 'r');
-      if ($f) {
-        fseek($f, 1);
-        $remaining = $len - 2;
-        while ($remaining > 0) {
-          $size = min($remaining, 4096);
-          $buff = fread($f, $size);
-          if ($buff !== false) {
-            fwrite($outfile, $buff);
-            $remaining -= $size;
-          } else {
-            $remaining = 0;
+    $started = false;
+    $events = json_decode(file_get_contents($file), true);
+    if (isset($events) && is_array($events)) {
+      foreach ($events as &$event) {
+        if (is_array($event) &&
+            array_key_exists('method', $event) &&
+            array_key_exists('params', $event) &&
+            is_array($event['params'])) {
+          if (!$started) {
+            $url = null;
+            if ($event['method'] == 'Network.requestWillBeSent' &&
+                array_key_exists('request', $event['params']) &&
+                is_array($event['params']['request']) &&
+                array_key_exists('url', $event['params']['request']))
+              $url = $event['params']['request']['url'];
+            elseif ($event['method'] == 'Timeline.eventRecorded' &&
+                array_key_exists('record', $event['params']) &&
+                is_array($event['params']['record']) &&
+                array_key_exists('type', $event['params']['record']) &&
+                $event['params']['record']['type'] == 'ResourceSendRequest' &&
+                array_key_exists('data', $event['params']['record']) &&
+                is_array($event['params']['record']['data']) &&
+                array_key_exists('url', $event['params']['record']['data']))
+              $url = $event['params']['record']['data']['url'];
+            if (isset($url) && strpos(substr($url, 0, 20), 'localhost') === false)
+              $started = true;
+          }
+          if ($started) {
+            fwrite($outfile, json_encode($event));
+            fwrite($outfile, ',');
           }
         }
-        fwrite($outfile, ',');
-        fclose($f);
       }
     }
   }
@@ -288,6 +317,8 @@ class Appurify{
       curl_setopt($this->curl, CURLOPT_URL, $command);
       curl_setopt($this->curl, CURLOPT_POST, true);
       if (isset($file)) {
+        if (!is_dir('./tmp'))
+          mkdir('./tmp', 0777);
         $tempFile = "./tmp/{$file['filename']}";
         file_put_contents($tempFile, $file['data']);
         $tempFile = realpath($tempFile);
