@@ -627,6 +627,7 @@ function BuildLocations( &$locations )
                                   unset($configuration['key']);
                                   unset($configuration['secret']);
                                   $devices = $appurify->GetDevices();
+                                  $connections = $appurify->GetConnections();
                                   if (count($devices)) {
                                     $configuration['browser'] = '';
                                     foreach($devices as $app_id => $app_name) {
@@ -636,6 +637,8 @@ function BuildLocations( &$locations )
                                       $cfg = $configuration;
                                       $cfg['browser'] = $app_name;
                                       $cfg['label'] = $cfg['label'] . " - $app_name";
+                                      if (isset($connections))
+                                        $cfg['connections'] = $connections;
                                       $locations[$label] = $cfg;
                                     }
                                   }
@@ -680,8 +683,7 @@ function FilterLocations(&$locations, $includeHidden = '',
     }
 
     // only do it if we aren't displaying hidden locations and we're not running on Windows (busted filetime())
-    if (!isset($_REQUEST['hidden']) &&
-       (PHP_OS!='WINNT' && PHP_OS!='WIN32' && PHP_OS!='Windows')) {
+    if (!isset($_REQUEST['hidden'])) {
         // first remove any locations that haven't checked in for 30 minutes (could tighten this up in the future)
         foreach ($locations as $name => &$locRef) {
             if (isset($locRef['browser'])) {
@@ -696,10 +698,14 @@ function FilterLocations(&$locations, $includeHidden = '',
                     if( $now > $updated )
                         $elapsed = $now - $updated;
                     $minutes = (int)($elapsed / 60);
-                    if( $minutes > 30 )
+                    if (PHP_OS!='WINNT' && PHP_OS!='WIN32' && PHP_OS!='Windows' &&$minutes > 30)
                         unset($locations[$name]);
                 } else {
-                  unset($locations[$name]);
+                  // TODO: Fix this so it only hides local locations, not relay and API
+                  if ((!array_key_exists('type', $locRef) || $locRef['type'] != 'Appurify') &&
+                      !array_key_exists('relayServer', $locRef)) {
+                    unset($locations[$name]);
+                  }
                 }
             }
         }
@@ -809,7 +815,7 @@ function FilterLocations(&$locations, $includeHidden = '',
 */
 function GetLocationFromConfig(&$locations, $config)
 {
-    $ret;
+    $ret = null;
     
     foreach($locations as $location => &$values)
         foreach($values as $cfg)
