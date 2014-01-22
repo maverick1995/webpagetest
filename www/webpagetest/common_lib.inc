@@ -1716,7 +1716,14 @@ function json_response(&$response) {
 
     if( array_key_exists('r', $_REQUEST) && strlen($_REQUEST['r']) )
         $ret['requestId'] = $_REQUEST['r'];
-    echo json_encode($response);
+    
+    if (version_compare(phpversion(), '5.4.0') >= 0 &&
+        array_key_exists('pretty', $_REQUEST) &&
+        $_REQUEST['pretty']) {
+      echo json_encode($response, JSON_PRETTY_PRINT);
+    } else {
+      echo json_encode($response);
+    }
 
     if( isset($_REQUEST['callback']) && strlen($_REQUEST['callback']) )
         echo ");";
@@ -2069,5 +2076,81 @@ function getLabel($test_guid, $current_user) {
         return false;
     }
 }
+
+/**
+*   Generate a unique Id
+*/
+function uniqueId(&$test_num) {
+    $id = NULL;
+    $test_num = 0;
+
+    if( !is_dir('./work/jobs') )
+        mkdir('./work/jobs', 0777, true);
+
+    // try locking the context file
+    $filename = './work/jobs/uniqueId.dat';
+    $file = fopen( $filename, "a+b",  false);
+    if( $file ) {
+        if( flock($file, LOCK_EX) ) {
+            fseek($file, 0, SEEK_SET);
+            $json = fread($file, 300);
+            $num = 0;
+            $day = (int)date('z');
+            $testData = array('day' => $day, 'num' => 0);
+            if ($json !== false) {
+                $newData = json_decode($json, true);
+                if (isset($newData) && is_array($newData) &&
+                    array_key_exists('day', $newData) &&
+                    array_key_exists('num', $newData) &&
+                    $newData['day'] == $day) {
+                    $testData['num'] = $newData['num'];
+                }
+            }
+
+            $testData['num']++;
+            $test_num = $testData['num'];
+
+            // convert the number to a base-32 string for shorter text
+            $id = NumToString($testData['num']);
+
+            // go back to the beginning of the file and write out the new value
+            fseek($file, 0, SEEK_SET);
+            ftruncate($file, 0);
+            fwrite($file, json_encode($testData));
+            flock($file, LOCK_UN);
+        }
+
+        fclose($file);
+    }
+
+    if (!isset($id)) {
+        $test_num = rand();
+        $id = md5(uniqid($test_num, true));
+    }
+
+    return $id;
+}
+
+/**
+* Convert a number to a base-32 string
+*
+* @param mixed $num
+*/
+function NumToString($num) {
+    if ($num > 0) {
+        $str = '';
+        $digits = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+        while($num > 0) {
+            $digitValue = $num % 32;
+            $num = (int)($num / 32);
+            $str .= $digits[$digitValue];
+        }
+        $str = strrev($str);
+    } else {
+        $str = '0';
+    }
+    return $str;
+}
+
 
 ?>

@@ -192,7 +192,7 @@ function GetJob() {
             $testerInfo['ip'] = $_SERVER['REMOTE_ADDR'];
             $testerInfo['pc'] = $pc;
             $testerInfo['ec2'] = $ec2;
-            $testerInfo['ver'] = $_GET['ver'];
+            $testerInfo['ver'] = array_key_exists('version', $_GET) ? $_GET['version'] : $_GET['ver'];
             $testerInfo['freedisk'] = @$_GET['freedisk'];
             $testerInfo['ie'] = @$_GET['ie'];
             $testerInfo['dns'] = $dnsServers;
@@ -288,7 +288,9 @@ function GetUpdate()
         if( is_file("$updateDir/{$fileBase}update.ini") && is_file("$updateDir/{$fileBase}update.zip") )
         {
             $update = parse_ini_file("$updateDir/{$fileBase}update.ini");
-            if( $update['ver'] && (int)$update['ver'] != (int)$_GET['ver'] )
+
+            // Check for inequality allows both upgrade and quick downgrade
+            if( $update['ver'] && intval($update['ver']) !== intval($_GET['ver']) )
             {
                 header('Content-Type: application/zip');
                 header("Cache-Control: no-cache, must-revalidate");
@@ -359,7 +361,10 @@ function ProcessTestShard(&$testInfo, &$test, &$delete) {
     global $supports_sharding;
     global $tester;
     if (isset($testInfo) && array_key_exists('shard_test', $testInfo) && $testInfo['shard_test']) {
-        if ($supports_sharding) {
+        if ((array_key_exists('type', $testInfo) && $testInfo['type'] == 'traceroute') ||
+            !$supports_sharding) {
+            $testInfo['shard_test'] = 0;
+        } else {
             if( $testLock = fopen( "$testPath/test.lock", 'w',  false) )
                 flock($testLock, LOCK_EX);
             $done = true;
@@ -424,8 +429,6 @@ function ProcessTestShard(&$testInfo, &$test, &$delete) {
                 flock($testLock, LOCK_UN);
                 fclose($testLock);
             }
-        } else {
-            $testInfo['shard_test'] = 0;
         }
     }
 }

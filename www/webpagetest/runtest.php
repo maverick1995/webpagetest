@@ -118,7 +118,9 @@
             $test['queue_limit'] = 0;
             $test['pngss'] = (int)$req_pngss;
             $test['iq'] = (int)$req_iq;
-            $test['bodies'] = $req_bodies;
+            $test['bodies'] = array_key_exists('bodies', $_REQUEST) && $_REQUEST['bodies'] ? 1 : 0;
+            if (!array_key_exists('bodies', $_REQUEST) && GetSetting('bodies'))
+              $test['bodies'] = 1;
             $test['htmlbody'] = $req_htmlbody;
             $test['time'] = (int)$req_time;
             $test['clear_rv'] = (int)$req_clearRV;
@@ -136,6 +138,7 @@
             $test['mobile'] = array_key_exists('mobile', $_REQUEST) && $_REQUEST['mobile'] ? 1 : 0;
             $test['clearcerts'] = array_key_exists('clearcerts', $_REQUEST) && $_REQUEST['clearcerts'] ? 1 : 0;
             $test['orientation'] = array_key_exists('orientation', $_REQUEST) ? trim($_REQUEST['orientation']) : 'default';
+            $test['responsive'] = array_key_exists('responsive', $_REQUEST) && $_REQUEST['responsive'] ? 1 : 0;
             if (array_key_exists('tsview_id', $_REQUEST))
               $test['tsview_id'] = $_REQUEST['tsview_id'];
 
@@ -1745,6 +1748,8 @@ function CreateTest(&$test, $url, $batch = 0, $batch_locations = 0)
                 $testFile .= "orientation={$test['orientation']}\r\n";
             if (array_key_exists('continuousVideo', $test) && $test['continuousVideo'])
                 $testFile .= "continuousVideo=1\r\n";
+            if (array_key_exists('responsive', $test) && $test['responsive'])
+                $testFile .= "responsive=1\r\n";
             if (array_key_exists('cmdLine', $test) && strlen($test['cmdLine']))
                 $testFile .= "cmdLine={$test['cmdLine']}\r\n";
             if (array_key_exists('addCmdLine', $test) && strlen($test['addCmdLine']))
@@ -2028,81 +2033,6 @@ function GetClosestLocation($url, $browser) {
         }
     }
     return $location;
-}
-
-/**
-*   Generate a unique Id
-*/
-function uniqueId(&$test_num) {
-    $id = NULL;
-    $test_num = 0;
-
-    if( !is_dir('./work/jobs') )
-        mkdir('./work/jobs', 0777, true);
-
-    // try locking the context file
-    $filename = './work/jobs/uniqueId.dat';
-    $file = fopen( $filename, "a+b",  false);
-    if( $file ) {
-        if( flock($file, LOCK_EX) ) {
-            fseek($file, 0, SEEK_SET);
-            $json = fread($file, 300);
-            $num = 0;
-            $day = (int)date('z');
-            $testData = array('day' => $day, 'num' => 0);
-            if ($json !== false) {
-                $newData = json_decode($json, true);
-                if (isset($newData) && is_array($newData) &&
-                    array_key_exists('day', $newData) &&
-                    array_key_exists('num', $newData) &&
-                    $newData['day'] == $day) {
-                    $testData['num'] = $newData['num'];
-                }
-            }
-
-            $testData['num']++;
-            $test_num = $testData['num'];
-
-            // convert the number to a base-32 string for shorter text
-            $id = NumToString($testData['num']);
-
-            // go back to the beginning of the file and write out the new value
-            fseek($file, 0, SEEK_SET);
-            ftruncate($file, 0);
-            fwrite($file, json_encode($testData));
-            flock($file, LOCK_UN);
-        }
-
-        fclose($file);
-    }
-
-    if (!isset($id)) {
-        $test_num = rand();
-        $id = md5(uniqid($test_num, true));
-    }
-
-    return $id;
-}
-
-/**
-* Convert a number to a base-32 string
-*
-* @param mixed $num
-*/
-function NumToString($num) {
-    if ($num > 0) {
-        $str = '';
-        $digits = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
-        while($num > 0) {
-            $digitValue = $num % 32;
-            $num = (int)($num / 32);
-            $str .= $digits[$digitValue];
-        }
-        $str = strrev($str);
-    } else {
-        $str = '0';
-    }
-    return $str;
 }
 
 function ErrorPage($error) {
