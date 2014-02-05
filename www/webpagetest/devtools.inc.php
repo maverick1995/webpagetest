@@ -535,36 +535,45 @@ function GetDevToolsRequests($testPath, $run, $cached, &$requests, &$pageData) {
                   $request['cdn_provider'] = null;
                   $request['server_count'] = null;
                   
-                  // page-level stats
-                  if (!array_key_exists('URL', $pageData) && strlen($request['full_url']))
-                      $pageData['URL'] = $request['full_url'];
-                  if (array_key_exists('endTime', $rawRequest)) {
-                      $endOffset = round(($rawRequest['endTime'] - $rawPageData['startTime']) * 1000);
-                      if ($endOffset > $pageData['fullyLoaded'])
-                          $pageData['fullyLoaded'] = $endOffset;
-                  }
-                  if (!array_key_exists('TTFB', $pageData) &&
-                      $request['ttfb_ms'] >= 0 &&
-                      ($request['responseCode'] == 200 ||
-                       $request['responseCode'] == 304))
-                      $pageData['TTFB'] = $request['load_start'] + $request['ttfb_ms'];
-                  $pageData['bytesOut'] += $request['bytesOut'];
-                  $pageData['bytesIn'] += $request['bytesIn'];
-                  $pageData['requests']++;
-                  if ($request['load_start'] < $pageData['docTime']) {
-                      $pageData['bytesOutDoc'] += $request['bytesOut'];
-                      $pageData['bytesInDoc'] += $request['bytesIn'];
-                      $pageData['requestsDoc']++;
-                  }
-                  if ($request['responseCode'] == 200)
-                      $pageData['responses_200']++;
-                  elseif ($request['responseCode'] == 404) {
-                      $pageData['responses_404']++;
-                      $pageData['result'] = 99999;
-                  } else
-                      $pageData['responses_other']++;
+                  // make SURE it is a valid request
+                  $valid = true;
+                  if (array_key_exists('load_ms', $request) &&
+                      array_key_exists('ttfb_ms', $request) &&
+                      $request['load_ms'] < $request['ttfb_ms'])
+                    $valid = false;
                   
-                  $requests[] = $request;
+                  if ($valid) {
+                    // page-level stats
+                    if (!array_key_exists('URL', $pageData) && strlen($request['full_url']))
+                        $pageData['URL'] = $request['full_url'];
+                    if (array_key_exists('endTime', $rawRequest)) {
+                        $endOffset = round(($rawRequest['endTime'] - $rawPageData['startTime']) * 1000);
+                        if ($endOffset > $pageData['fullyLoaded'])
+                            $pageData['fullyLoaded'] = $endOffset;
+                    }
+                    if (!array_key_exists('TTFB', $pageData) &&
+                        $request['ttfb_ms'] >= 0 &&
+                        ($request['responseCode'] == 200 ||
+                         $request['responseCode'] == 304))
+                        $pageData['TTFB'] = $request['load_start'] + $request['ttfb_ms'];
+                    $pageData['bytesOut'] += $request['bytesOut'];
+                    $pageData['bytesIn'] += $request['bytesIn'];
+                    $pageData['requests']++;
+                    if ($request['load_start'] < $pageData['docTime']) {
+                        $pageData['bytesOutDoc'] += $request['bytesOut'];
+                        $pageData['bytesInDoc'] += $request['bytesIn'];
+                        $pageData['requestsDoc']++;
+                    }
+                    if ($request['responseCode'] == 200)
+                        $pageData['responses_200']++;
+                    elseif ($request['responseCode'] == 404) {
+                        $pageData['responses_404']++;
+                        $pageData['result'] = 99999;
+                    } else
+                        $pageData['responses_other']++;
+                    
+                    $requests[] = $request;
+                  }
                 }
               }
             }
@@ -648,8 +657,10 @@ function DevToolsFilterNetRequests($events, &$requests, &$pageData) {
                         $rawRequests[$id]['firstByteTime'] = $event['timestamp'];
                     if (!array_key_exists('bytesInData', $rawRequests[$id]))
                         $rawRequests[$id]['bytesInData'] = 0;
-                    if (array_key_exists('encodedDataLength', $event))
+                    if (array_key_exists('encodedDataLength', $event) && $event['encodedDataLength'])
                         $rawRequests[$id]['bytesInData'] += $event['encodedDataLength'];
+                    elseif (array_key_exists('dataLength', $event) && $event['dataLength'])
+                        $rawRequests[$id]['bytesInData'] += $event['dataLength'];
                 }
                 if ($event['method'] == 'Network.responseReceived' &&
                     array_key_exists('response', $event)) {
