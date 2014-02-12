@@ -3,7 +3,6 @@ if(extension_loaded('newrelic')) {
   newrelic_add_custom_tracer('StartProcessingIncrementalResult');
   newrelic_add_custom_tracer('CheckForSpam');
   newrelic_add_custom_tracer('loadPageRunData');
-  newrelic_add_custom_tracer('ProcessAVIVideo');
   newrelic_add_custom_tracer('getBreakdown');
   newrelic_add_custom_tracer('GetVisualProgress');
   newrelic_add_custom_tracer('DevToolsGetConsoleLog');
@@ -264,10 +263,8 @@ if( array_key_exists('video', $_REQUEST) && $_REQUEST['video'] )
             $testInfo_dirty = true;
         }
         // pre-process any background processing we need to do for this run
-        if (isset($runNumber) && isset($cacheWarmed)) {
+        if (isset($runNumber) && isset($cacheWarmed))
             ProcessAVIVideo($testInfo, $testPath, $runNumber, $cacheWarmed, false);
-            loadPageRunData($testPath, $runNumber, $cacheWarmed);
-        }
             
         // see if the test is complete
         if( $done )

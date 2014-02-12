@@ -179,18 +179,23 @@
                     // see if the requested browser is a custom browser
                   if (is_dir('./browsers') &&
                       is_file('./browsers/browsers.ini') &&
-                      is_file("./browsers/{$test['browser']}.zip")) {
+                      (is_file("./browsers/{$test['browser']}.zip") ||
+                       is_file("./browsers/{$test['browser']}.apk"))) {
                     $customBrowsers = parse_ini_file('./browsers/browsers.ini');
                     if (array_key_exists($test['browser'], $customBrowsers)) {
                       $base_uri = "http://{$_SERVER['HTTP_HOST']}/browsers/";
                       if (array_key_exists('browsers_url', $settings) && strlen($settings['browsers_url']))
                           $base_uri = $settings['browsers_url'];
-                      $test['customBrowserUrl'] = "$base_uri{$test['browser']}.zip";
+                      $test['customBrowserUrl'] = is_file("./browsers/{$test['browser']}.zip") ?
+                          "$base_uri{$test['browser']}.zip" : "$base_uri{$test['browser']}.apk";
                       $test['customBrowserMD5'] = $customBrowsers[$test['browser']];
+                      if (is_file("./browsers/{$test['browser']}.json"))
+                        $test['customBrowserSettings'] = json_decode(file_get_contents("./browsers/{$test['browser']}.json"), true);
                     }
                   }
                 }
-                if (strlen(trim($matches[3]))) {
+                if (strlen(trim($matches[3])) &&
+                    empty($locations[$test['location']]['connectivity'])) {
                     $test['connectivity'] = trim($matches[3]);
                     $test['requested_connectivity'] = $test['connectivity'];
                 }
@@ -724,7 +729,11 @@ function UpdateLocation(&$test, &$locations, $new_location)
       $error = "Invalid Location, please try submitting your test request again.";
 
   // see if we need to pick the default connectivity
-  if (empty($locations[$test['location']]['connectivity']) && !isset($test['connectivity'])) {
+  if (array_key_exists('connectivity', $locations[$test['location']]) &&
+      strlen($locations[$test['location']]['connectivity']) &&
+      array_key_exists('connectivity', $test)) {
+    unset($test['connectivity']);
+  } elseif (empty($locations[$test['location']]['connectivity']) && !isset($test['connectivity'])) {
     if (!empty($locations[$test['location']]['default_connectivity'])) {
         $test['connectivity'] = $locations[$test['location']]['default_connectivity'];
     } else {
@@ -1761,6 +1770,12 @@ function CreateTest(&$test, $url, $batch = 0, $batch_locations = 0)
                 $testFile .= "customBrowserUrl={$test['customBrowserUrl']}\r\n";
             if (array_key_exists('customBrowserMD5', $test) && strlen($test['customBrowserMD5']))
                 $testFile .= "customBrowserMD5={$test['customBrowserMD5']}\r\n";
+            if (array_key_exists('customBrowserSettings', $test) &&
+                is_array($test['customBrowserSettings']) &&
+                count($test['customBrowserSettings'])) {
+              foreach ($test['customBrowserSettings'] as $setting => $value)
+                $testFile .= "customBrowser_$setting=$value\r\n";
+            }
 
             // see if we need to add custom scan rules
             if (array_key_exists('custom_rules', $test)) {
