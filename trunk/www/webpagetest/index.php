@@ -97,6 +97,8 @@ $loc = ParseLocations($locations);
               echo '<input type="hidden" name="discard" value="' . htmlspecialchars($_REQUEST['discard']) . "\">\n";
             if (array_key_exists('responsive', $_REQUEST))
               echo '<input type="hidden" name="responsive" value="' . htmlspecialchars($_REQUEST['responsive']) . "\">\n";
+            if (array_key_exists('trace', $_REQUEST))
+              echo '<input type="hidden" name="trace" value="' . htmlspecialchars($_REQUEST['trace']) . "\">\n";
             ?>
 
             <h2 class="cufon-dincond_black">Test a website's performance</h2>
@@ -399,6 +401,20 @@ $loc = ParseLocations($locations);
                                         <label for="netlog" class="auto_width">
                                             Capture Network Log
                                         </label>
+                                    </li>
+                                    <li>
+                                        <input type="checkbox" name="dataReduction" id="dataReduction" class="checkbox" style="float: left;width: auto;">
+                                        <label for="dataReduction" class="auto_width">
+                                            Enable Data Reduction<br>
+                                            <small>Chrome 34+ on Android</small>
+                                        </label>
+                                    </li>
+                                    <li>
+                                        <label for="uastring" style="width: auto;">
+                                        User Agent String<br>
+                                        <small>(Custom UA String)</small>
+                                        </label>
+                                        <input type="text" name="uastring" id="uastring" class="text" style="width: 350px;">
                                     </li>
                                     <li>
                                         <label for="cmdline" style="width: auto;">
