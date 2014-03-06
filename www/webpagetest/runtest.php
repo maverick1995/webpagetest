@@ -48,13 +48,15 @@
         // see if we're re-running an existing test
         if( isset($test) )
             unset($test);
-        if( isset($_POST['resubmit']) )
-        {
-            $path = './' . GetTestPath(trim($_POST['resubmit']));
-            $test = json_decode(gz_file_get_contents("$path/testinfo.json"), true);
+        if (array_key_exists('resubmit', $_POST)) {
+          $test = GetTestInfo(trim($_POST['resubmit']));
+          if ($test) {
             unset($test['completed']);
             unset($test['started']);
             unset($test['tester']);
+          } else {
+            unset($test);
+          }
         }
 
         // pull in the test parameters
@@ -145,6 +147,7 @@
 
             // custom options
             $test['cmdLine'] = '';
+            ValidateCommandLine($req_cmdline, $error);
             $test['addCmdLine'] = $req_cmdline;
             if (isset($req_disableThreadedParser) && $req_disableThreadedParser) {
               if (strlen($test['addCmdLine']))
@@ -155,6 +158,20 @@
               if (strlen($test['addCmdLine']))
                 $test['addCmdLine'] .= ' ';
               $test['addCmdLine'] .= '--use-spdy=no-ssl';
+            }
+            if (isset($req_dataReduction) && $req_dataReduction) {
+              if (strlen($test['addCmdLine']))
+                $test['addCmdLine'] .= ' ';
+              $test['addCmdLine'] .= '--enable-spdy-proxy-auth';
+            }
+            if (isset($req_uastring) && strlen($req_uastring)) {
+              if (strpos($req_uastring, '"') !== false) {
+                $error = 'Invalid User Agent String: "' . htmlspecialchars($req_uastring) . '"';
+              } else {
+                if (strlen($test['addCmdLine']))
+                  $test['addCmdLine'] .= ' ';
+                $test['addCmdLine'] .= '--user-agent="' . $req_uastring . '"';
+              }
             }
 
             // see if we need to process a template for these requests
@@ -348,15 +365,6 @@
         ValidateKey($test, $error);
         if( !strlen($error) && CheckIp($test) && CheckUrl($test['url']) )
         {
-            if (isset($req_cmdline) && strlen($req_cmdline)) {
-              $req_cmdline = trim($req_cmdline);
-              if (!preg_match('/^--(([a-zA-Z0-9\-\.\+=,_ "]+)|((proxy-server|proxy-pac-url)=[a-zA-Z0-9\-\.\+=,_:\/"]+))$/', $req_cmdline)) {
-                $error = 'Invalid command-line options';
-                $req_cmdline = '';
-              }
-            } else
-              $req_cmdline = '';
-
             if( !$error && !$test['batch'] )
               ValidateParameters($test, $locations, $error);
 
@@ -1802,24 +1810,21 @@ function CreateTest(&$test, $url, $batch = 0, $batch_locations = 0)
                 $testId = null;
         }
 
-        // store the entire test data structure JSON encoded (instead of a bunch of individual files)
-        $oldUrl = @$test['url'];
-        $test['url'] = $url;
-        gz_file_put_contents("{$test['path']}/testinfo.json",  json_encode($test));
-        $test['url'] = $oldUrl;
-
         // log the test
-        if( isset($testId) )
-        {
-            if ( $batch_locations )
-                LogTest($test, $testId, 'Multiple Locations test');
-            else if( $batch )
-                LogTest($test, $testId, 'Bulk Test');
-            else
-                LogTest($test, $testId, $url);
-        }
-        else
-        {
+        if (isset($testId)) {
+          // store the entire test data structure JSON encoded (instead of a bunch of individual files)
+          $oldUrl = @$test['url'];
+          $test['url'] = $url;
+          SaveTestInfo($testId, $test);
+          $test['url'] = $oldUrl;
+
+          if ( $batch_locations )
+              LogTest($test, $testId, 'Multiple Locations test');
+          else if( $batch )
+              LogTest($test, $testId, 'Bulk Test');
+          else
+              LogTest($test, $testId, $url);
+        } else {
             // delete the test if we didn't really submit it
             delTree("{$test['path']}/");
         }
@@ -1966,7 +1971,7 @@ function RelayTest()
         $job = str_replace($test['id'], $id, $job);
         file_put_contents("$testPath/testinfo.ini", $ini);
         WriteJob($location, $test, $job, $id);
-        gz_file_put_contents("$testPath/testinfo.json", json_encode($test));
+        SaveTestInfo($id, $test);
     }
 
     if( isset($error) )
@@ -2137,4 +2142,23 @@ function ProcessTestScript($url, &$test) {
   return $script;
 }
 
+/**
+* Break up the supplied command-line string and make sure it isn't using
+* invalid characters that may cause system issues.
+* 
+* @param mixed $cmd
+* @param mixed $error
+*/
+function ValidateCommandLine($cmd, &$error) {
+  if (isset($cmd) && strlen($cmd)) {
+    $flags = explode(' ', $cmd);
+    if ($flags && is_array($flags) && count($flags)) {
+      foreach($flags as $flag) {
+        if (!preg_match('/^--(([a-zA-Z0-9\-\.\+=,_ "]+)|((proxy-server|proxy-pac-url)=[a-zA-Z0-9\-\.\+=,_:\/]+))$/', $flag)) {
+          $error = 'Invalid command-line option: "' . htmlspecialchars($flag) . '"';
+        }
+      }
+    }
+  }
+}
 ?>
