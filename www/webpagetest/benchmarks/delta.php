@@ -32,12 +32,10 @@ else {
 }
 $metrics = array('docTime' => 'Load Time (onload)', 
                 'SpeedIndex' => 'Speed Index',
-                'SpeedIndexDT' => 'Speed Index (Dev Tools)',
                 'TTFB' => 'Time to First Byte', 
                 'titleTime' => 'Time to Title', 
                 'render' => 'Time to Start Render', 
                 'visualComplete' => 'Time to Visually Complete', 
-                'VisuallyCompleteDT' => 'Time to Visually Complete (Dev Tools)', 
                 'fullyLoaded' => 'Load Time (Fully Loaded)', 
                 'server_rtt' => 'Estimated RTT to Server',
                 'docCPUms' => 'CPU Busy Time',
