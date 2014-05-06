@@ -13,6 +13,12 @@ $pageData = loadAllPageData($testPath);
         <meta http-equiv="charset" content="iso-8859-1">
         <meta name="author" content="Patrick Meenan">
         <?php $gaTemplate = 'Graph'; include ('head.inc'); ?>
+        <style type="text/css">
+        h1 {
+          text-align: left;
+          font-size:  large;
+        }
+        </style>
     </head>
     <body>
         <div class="page">
@@ -109,31 +115,33 @@ $pageData = loadAllPageData($testPath);
 
 <?php
 function InsertChart($metric, $label) {
-    global $pageData;
-    global $chartData;
-    global $test;
-    global $median_metric;
-    if (array_key_exists('testinfo', $test)) {
-        $div = "{$metric}Chart";
-        $runs = $test['testinfo']['runs'];
-        if (array_key_exists('discard', $test['testinfo'])) {
-            $runs -= $test['testinfo']['discard'];
-        }
-        echo "<div id=\"$div\" class=\"chart\"></div>\n";
-        $chart = array('div' => $div, 'title' => $label, 'fv' => array('data' => array()));
-        $chart['fv']['median'] = $pageData[GetMedianRun($pageData, 0, $median_metric)][0][$metric];
-        $fvonly = $test['testinfo']['fvonly'];
-        if (!$fvonly) {
-            $chart['rv'] = array('data' => array());
-            $chart['rv']['median'] = $pageData[GetMedianRun($pageData, 1, $median_metric)][1][$metric];
-        }
-        for ($i = 1; $i <= $runs; $i++) {
-            $chart['fv']['data'][$i] = $pageData[$i][0][$metric];
-            if (!$fvonly) {
-                $chart['rv']['data'][$i] = $pageData[$i][1][$metric];
-            }
-        }
-        $chartData[$metric] = $chart;
+  global $pageData;
+  global $chartData;
+  global $test;
+  global $median_metric;
+  if (array_key_exists('testinfo', $test)) {
+    $div = "{$metric}Chart";
+    $runs = $test['testinfo']['runs'];
+    if (array_key_exists('discard', $test['testinfo']))
+      $runs -= $test['testinfo']['discard'];
+    echo "<h1 id=\"$metric\">" . htmlspecialchars($label) . "</h1>";
+    echo "<div id=\"$div\" class=\"chart\"></div>\n";
+    $chart = array('div' => $div, 'title' => $label, 'fv' => array('data' => array()));
+    $chart['fv']['median'] = $pageData[GetMedianRun($pageData, 0, $median_metric)][0][$metric];
+    $fvonly = $test['testinfo']['fvonly'];
+    if (!$fvonly) {
+      $chart['rv'] = array('data' => array());
+      $chart['rv']['median'] = $pageData[GetMedianRun($pageData, 1, $median_metric)][1][$metric];
     }
+    for ($i = 1; $i <= $runs; $i++) {
+      $chart['fv']['data'][$i] = $pageData[$i][0][$metric];
+      if (!$fvonly)
+        $chart['rv']['data'][$i] = $pageData[$i][1][$metric];
+    }
+    $chartData[$metric] = $chart;
+  }
+}
+
+function GetQuantiles(&$data) {
 }
 ?>
