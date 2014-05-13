@@ -22,7 +22,7 @@ header ("Content-type: text/plain");
 
 $nonZero = array('TTFB', 'bytesOut', 'bytesOutDoc', 'bytesIn', 'bytesInDoc', 'connections', 'requests', 'requestsDoc', 'render', 
                 'fullyLoaded', 'docTime', 'domElements', 'titleTime', 'domContentLoadedEventStart', 'visualComplete', 'SpeedIndex', 
-                'VisuallyCompleteDT', 'SpeedIndexDT');
+                'VisuallyCompleteDT', 'SpeedIndexDT', 'lastVisualChange');
 
 // see if we need to actuall process the given benchmark
 if (array_key_exists('benchmark', $_GET) && strlen($_GET['benchmark'])) {
@@ -616,7 +616,6 @@ function AggregateMetric($metric, $info, &$data, $run_time, &$agg_data, $options
             array_key_exists('location', $record) && 
             strlen($record['config']) &&
             strlen($record['location']) &&
-            $record['loadTime'] != 0 &&
             ($record['result'] == 0 || $record['result'] == 99999)) {
                 
             // make sure all of the metrics that we expect to be non-zero are
