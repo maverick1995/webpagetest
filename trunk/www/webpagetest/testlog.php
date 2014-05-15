@@ -78,6 +78,8 @@ else
                              <label><input id="all" type="checkbox" name="all" <?php check_it($all);?> onclick="this.form.submit();"> Show tests from all users</label> &nbsp;&nbsp;
                              <?php
                          }
+                         if ($includePrivate)
+                           echo '<input id="private" type="hidden" name="private" value="1">';
                          ?>
                         <label><input id="video" type="checkbox" name="video" <?php check_it($onlyVideo);?> onclick="this.form.submit();"> Only list tests that include video</label> &nbsp;&nbsp;
                         <label><input id="nolimit" type="checkbox" name="nolimit" <?php check_it($nolimit);?> onclick="this.form.submit();"> Do not limit the number of results (warning, WILL be slow)</label>
@@ -252,7 +254,7 @@ else
                                                 echo "<a href=\"$link\" id=\"label_$guid\">$labelTxt</a>&nbsp;";
 
                                                 // Only allow people to update labels if they are logged in
-                                                if ($user) {
+                                                if ($user && class_exists("SQLite3")) {
                                                     echo '<a href="#" class="editLabel" data-test-guid="' . $guid . '" data-current-label="' . $label . '">(Edit)</a>';
                                                 }
 
