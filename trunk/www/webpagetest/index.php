@@ -8,7 +8,7 @@ if (!array_key_exists('noBulk', $settings))
     $settings['noBulk'] = 0;
 
 // see if we are overriding the max runs
-if (isset($_COOKIE['maxruns'])) {
+if (isset($_COOKIE['maxruns']) && (int)$_GET['maxruns'] > 0) {
     $settings['maxruns'] = (int)$_GET['maxruns'];
 }
 if (isset($_GET['maxruns'])) {
@@ -16,7 +16,7 @@ if (isset($_GET['maxruns'])) {
     setcookie("maxruns", $settings['maxruns']);    
 }
 
-if (!isset($settings['maxruns'])) {
+if (!isset($settings['maxruns']) || $settings['maxruns'] <= 0) {
     $settings['maxruns'] = 10;
 }
 if (isset($_REQUEST['map'])) {
@@ -202,6 +202,7 @@ $loc = ParseLocations($locations);
                                 <li><a href="#script">Script</a></li>
                                 <li><a href="#block">Block</a></li>
                                 <li><a href="#spof">SPOF</a></li>
+                                <li><a href="#custom-metrics">Custom</a></li>
                                 <?php if (!$settings['noBulk']) { ?>
                                 <li><a href="#bulk">Bulk Testing</a></li>
                                 <?php } ?>
@@ -506,6 +507,19 @@ $loc = ParseLocations($locations);
                                         echo htmlspecialchars(str_replace(',', "\r\n", $_REQUEST['spof']));
                                     }
                                 ?></textarea>
+                            </div>
+
+                            <div id="custom-metrics" class="test_subbox ui-tabs-hide">
+                                <div>
+                                    <div class="notification-container">
+                                        <div class="notification"><div class="message">
+                                            See <a href="https://sites.google.com/a/webpagetest.org/docs/using-webpagetest/custom-metrics">the documentation</a> for details on how to specify custom metrics to be captured.
+                                        </div></div>
+                                    </div>
+                                    
+                                    <p><label for="custom_metrics" class="full_width">Custom Metrics:</label></p>
+                                    <textarea name="custom" id="custom_metrics" cols="0" rows="0"></textarea>
+                                </div>
                             </div>
 
                             <?php if (!$settings['noBulk']) { ?>
