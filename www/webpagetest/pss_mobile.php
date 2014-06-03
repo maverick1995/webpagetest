@@ -36,9 +36,7 @@ $page_description = "Comparison Test$testLabel.";
             $navTabs = array(   'New Comparison' => FRIENDLY_URLS ? '/compare' : '/pss.php' );
             if( array_key_exists('pssid', $_GET) && strlen($_GET['pssid']) )
                 $navTabs['Test Result'] = FRIENDLY_URLS ? "/result/{$_GET['pssid']}/" : "/results.php?test={$_GET['pssid']}";
-            $navTabs += array(  'PageSpeed Service Home' => 'http://code.google.com/speed/pss', 
-                                'Sample Tests' => 'http://code.google.com/speed/pss/gallery.html',
-                                'Sign Up!' => 'https://docs.google.com/a/google.com/spreadsheet/viewform?hl=en_US&formkey=dDdjcmNBZFZsX2c0SkJPQnR3aGdnd0E6MQ');
+            $navTabs += array(  'PageSpeed Service Home' => 'https://developers.google.com/speed/pagespeed/service');
             $tab = 'New Comparison';
             include 'header.inc';
             ?>
@@ -73,7 +71,7 @@ $page_description = "Comparison Test$testLabel.";
               echo "<input type=\"hidden\" name=\"vh\" value=\"$hmac\">\n";
             }
             ?>
-            <h2 class="cufon-dincond_black"><small>Measure your Mobile site performance when optimized by <a href="http://code.google.com/speed/pss">PageSpeed Service</a></small></h2>
+            <h2 class="cufon-dincond_black"><small>Measure your Mobile site performance when optimized by <a href="https://developers.google.com/speed/pagespeed/service">PageSpeed Service</a></small></h2>
             <div id="test_box-container">
                 <div id="analytical-review" class="test_box">
                     <ul class="input_fields">
