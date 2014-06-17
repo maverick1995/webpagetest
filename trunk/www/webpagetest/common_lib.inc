@@ -5,7 +5,7 @@ if(extension_loaded('newrelic')) {
 
 define('VIDEO_CODE_VERSION', 17);
 
-require_once('./logging.inc');
+require_once(__DIR__ . '/logging.inc');
 
 /**
 * Figure out the test path (relative) for the given test id
@@ -2224,6 +2224,24 @@ function GetTestInfo($testIdOrPath) {
   return $testInfo;
 }
 
+// Extract the non-private test information for returning back to the caller
+function PopulateTestInfo(&$test) {
+  $ret = array();
+  $copy = function($key) use ($test, &$ret) {
+    if (isset($test[$key]))
+      $ret[$key] = $test[$key];
+  };
+  $keys = array('url', 'runs', 'fvonly', 'web10', 'ignoreSSL', 'video', 'label',
+      'priority', 'block', 'location', 'browser', 'connectivity', 'bwIn', 'bwOut',
+      'latency', 'plr', 'tcpdump', 'timeline', 'trace', 'bodies', 'netlog',
+      'standards', 'noscript', 'pngss', 'iq', 'bodies', 'keepua', 'benchmark',
+      'mobile', 'tsview_id', 'addCmdLine');
+  foreach ($keys as $key)
+    $copy($key);
+  $ret['scripted'] = isset($test['script']) && strlen($test['script']) ? 1 : 0;
+  return $ret;
+}
+
 function SaveTestInfo($testIdOrPath, &$testInfo) {
   if (isset($testInfo) && is_array($testInfo) &&
       isset($testIdOrPath) && strlen($testIdOrPath)) {
@@ -2281,4 +2299,38 @@ function logTestMsg($testIdOrPath, $message) {
     }
   }
 }
+
+/**
+ * Compute the median of an array of values.  If there are an even number
+ * of values, returns the lower of the two middle values for consistency with
+ * GetMedianRun in page_data.inc.
+ *
+ * @param object[] $values Array of values for median computation.
+ *
+ * @return object
+ */
+function median($values) {
+  if (!count($values)) {
+    return null;
+  }
+  $medianIndex = (int)floor((float)(count($values) - 1.0) / 2.0);
+  sort($values, SORT_NUMERIC);
+  return $values[$medianIndex];
+}
+
+/**
+ * Computes the number of runs, not including discarded runs.
+ *
+ * @param mixed $testInfo Object as returned by GetTestInfo
+ *
+ * @return int Number of runs, not including discarded runs.
+ */
+function numRunsFromTestInfo($testInfo) {
+  $runs = $testInfo['runs'];
+  if (array_key_exists('discard', $testInfo)) {
+    $runs -= $testInfo['discard'];
+  }
+  return $runs;
+}
+
 ?>
