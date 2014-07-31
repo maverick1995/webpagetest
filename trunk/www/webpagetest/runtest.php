@@ -162,7 +162,7 @@
             if (isset($req_dataReduction) && $req_dataReduction) {
               if (strlen($test['addCmdLine']))
                 $test['addCmdLine'] .= ' ';
-              $test['addCmdLine'] .= '--enable-spdy-proxy-auth';
+              $test['addCmdLine'] .= '--enable-spdy-proxy-auth --force-fieldtrials=DataCompressionProxyRollout/Enabled/';
             }
             if (isset($req_uastring) && strlen($req_uastring)) {
               if (strpos($req_uastring, '"') !== false) {
@@ -362,6 +362,7 @@
                 unset($test['test_runs']);
             if (array_key_exists('spam', $test))
                 unset($test['spam']);
+            $test['priority'] =  0;
         }
 
         // the API key requirements are for all test paths
@@ -1119,13 +1120,15 @@ function ValidateScript(&$script, &$error)
                 $url = trim($tokens[1]);
                 if (stripos($url, '%URL%') !== false)
                     $url = null;
-            }
-            elseif( !strcasecmp($command, 'loadVariables') )
+            } elseif( !strcasecmp($command, 'loadVariables') )
                 $error = "loadVariables is not a supported command for uploaded scripts.";
             elseif( !strcasecmp($command, 'loadFile') )
                 $error = "loadFile is not a supported command for uploaded scripts.";
             elseif( !strcasecmp($command, 'fileDialog') )
                 $error = "fileDialog is not a supported command for uploaded scripts.";
+
+            if (stripos($command, 'AndWait') !== false)
+              $navigateCount++;
         }
 
         $test['navigateCount'] = $navigateCount;
@@ -1877,6 +1880,7 @@ function CreateTest(&$test, $url, $batch = 0, $batch_locations = 0)
         } else {
             // delete the test if we didn't really submit it
             delTree("{$test['path']}/");
+
         }
     } else {
         global $error;

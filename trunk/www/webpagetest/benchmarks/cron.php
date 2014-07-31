@@ -115,14 +115,19 @@ function PreProcessBenchmark($benchmark) {
     logMsg("Benchmark '$benchmark' needs processing, spawning task", "./log/$logFile", true);
     
     $url = "http://" . $_SERVER['HTTP_HOST'] . $_SERVER['PHP_SELF'] . '?benchmark=' . urlencode($benchmark);
-    $c = curl_init();
-    curl_setopt($c, CURLOPT_URL, $url);
-    curl_setopt($c, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($c, CURLOPT_FOLLOWLOCATION, true);
-    curl_setopt($c, CURLOPT_CONNECTTIMEOUT, 1);
-    curl_setopt($c, CURLOPT_TIMEOUT, 1);
-    curl_exec($c);
-    curl_close($c);
+    if (function_exists('curl_init')) {
+      $c = curl_init();
+      curl_setopt($c, CURLOPT_URL, $url);
+      curl_setopt($c, CURLOPT_RETURNTRANSFER, true);
+      curl_setopt($c, CURLOPT_FOLLOWLOCATION, true);
+      curl_setopt($c, CURLOPT_CONNECTTIMEOUT, 1);
+      curl_setopt($c, CURLOPT_TIMEOUT, 1);
+      curl_exec($c);
+      curl_close($c);
+    } else {
+      $context = stream_context_create(array('http' => array('header'=>'Connection: close', 'timeout' => 1)));
+      file_get_contents($url, false, $context);
+    }
   } else {
     echo "Benchmark '$benchmark' is idle\n";
     logMsg("Benchmark '$benchmark' is idle", "./log/$logFile", true);
@@ -528,7 +533,7 @@ function AggregateResults($benchmark, &$state, $options) {
     }
     
     // store a list of metrics that we aggregate in the info block
-    $info['metrics'] = array('TTFB', 'bytesOut', 'bytesOutDoc', 'bytesIn', 'bytesInDoc', 
+    $info['metrics'] = array('TTFB', 'basePageSSLTime', 'bytesOut', 'bytesOutDoc', 'bytesIn', 'bytesInDoc', 
                                 'connections', 'requests', 'requestsDoc', 'render', 
                                 'fullyLoaded', 'docTime', 'domTime', 'score_cache', 'score_cdn',
                                 'score_gzip', 'score_keep-alive', 'score_compress', 'gzip_total', 'gzip_savings',
