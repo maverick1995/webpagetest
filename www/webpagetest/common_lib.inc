@@ -1340,7 +1340,7 @@ function AddJobFileHead($workDir, $file, $priority, $atFront = false)
 /**
 * Get a job from the given work queue (assume it is locked)
 */
-function GetJobFile($workDir, &$priority) {
+function GetJobFile($workDir, &$priority, $tester = null, $testerIndex = null, $testerCount = null) {
     $file = null;
 
     $beanstalkd = GetSetting('beanstalkd');
@@ -1369,12 +1369,37 @@ function GetJobFile($workDir, &$priority) {
         $modified = false;
         $priority = 0;
         while (!isset($file) && $priority <= 9) {
-            $file = array_shift($queue[$priority]);
-            if (isset($file))
-                $modified = true;
-            if (isset($file) && !is_file("$workDir/$file"))
-                unset($file);
-            elseif (!isset($file))
+            // Pick any tests without affinity or whose affinity
+            // matches the existing tester
+            if (isset($queue[$priority]) && count($queue[$priority])) {
+              foreach ($queue[$priority] as $index => $job_file) {
+                if (preg_match('/Affinity(?P<affinity>[a-zA-Z0-9\-_]+)\.(?P<id>[a-zA-Z0-9\_]+)\.(p[0-9]|url)$/', $job_file, $matches)) {
+                  $affinity = $matches['affinity'];
+                  if (preg_match('/^Tester(?P<tester>[a-zA-Z0-9\-_]+$)/', $affinity, $matches)) {
+                    if (isset($tester) && !strcasecmp($tester,$matches['tester']))
+                      $file = $job_file;
+                  } elseif (isset($testerIndex) && isset($testerCount) &&
+                            $testerIndex >= 0 && $testerIndex < $testerCount &&
+                            preg_match('/^[0-9]+$/', $affinity, $matches)) {
+                    $matchIndex = intval($affinity) % $testerCount;
+                    if ($matchIndex == $testerIndex)
+                      $file = $job_file;
+                  }
+                } else {
+                  // no affinity, this one works
+                  $file = $job_file;
+                }
+                if (isset($file)) {
+                  unset($queue[$priority][$index]);
+                  $modified = true;
+                  if (is_file("$workDir/$file"))
+                    break;
+                  else
+                    unset($file);
+                }
+              }
+            }
+            if (!isset($file))
                 $priority++;
         }
 
@@ -1427,8 +1452,8 @@ function LoadJobQueue($workDir, &$queue)
         $queue = null;
         $queueName = sha1($workDir);
         $queueFile = "./tmp/$queueName.queue";
-        if( is_file($queueFile) ) {
-            $queue = json_decode(file_get_contents($queueFile), true);
+        if( gz_is_file($queueFile) ) {
+            $queue = json_decode(gz_file_get_contents($queueFile), true);
             // re-scan the directory if the queue is empty
             if (isset($queue)) {
                 if (is_array($queue)) {
@@ -1494,7 +1519,7 @@ function SaveJobQueue($workDir, &$queue)
 {
     $ret = false;
     $queueName = sha1($workDir);
-    if (file_put_contents("./tmp/$queueName.queue", json_encode($queue)) )
+    if (gz_file_put_contents("./tmp/$queueName.queue", json_encode($queue)) )
         $ret = true;
 
     return $ret;
@@ -1525,7 +1550,7 @@ function GetTesters($locationId)
         {
             ksort($testers);
             $location['testers'] = array();
-            foreach( $testers as $index => $tester )
+            foreach( $testers as $id => $tester )
             {
                 if( !array_key_exists('offline', $tester) || !$tester['offline'] )
                 {
@@ -1542,6 +1567,17 @@ function GetTesters($locationId)
                         $entry['cpu'] = round($total / $count);
                     }
 
+                    if (array_key_exists('errors', $tester) && is_array($tester['errors'])) {
+                      $total = 0;
+                      $count = 0;
+                      foreach($tester['errors'] as $error) {
+                        $total += $error;
+                        $count++;
+                      }
+                      if ($count > 50)
+                        $entry['errors'] = round((100 * $total) / $count);
+                    }
+                    
                     // last time it checked in
                     if( isset($tester['updated']) )
                     {
@@ -1566,6 +1602,7 @@ function GetTesters($locationId)
                     if( strlen( $tester['test'] ) )
                         $entry['busy'] = 1;
 
+                    $entry['id'] = $id;
                     $location['testers'][] = $entry;
                 }
             }
@@ -1858,7 +1895,7 @@ function SecureDir($path) {
 * @param mixed $tester
 * @param mixed $testerInfo
 */
-function UpdateTester($location, $tester, $testerInfo = null, $cpu = null) {
+function UpdateTester($location, $tester, $testerInfo = null, $cpu = null, $error = null) {
     if ($lock = LockLocation("testers-$location")) {
         $testers = json_decode(file_get_contents("./tmp/$location.tm"), true);
         if( !count($testers) )
@@ -1881,6 +1918,14 @@ function UpdateTester($location, $tester, $testerInfo = null, $cpu = null) {
           $testers[$tester]['cpu'][] = $cpu;
           if (count($testers[$tester]['cpu']) > 100)
             array_shift($testers[$tester]['cpu']);
+        }
+        // keep track of the success/error count
+        if (isset($error)) {
+          if (!array_key_exists('errors', $testers[$tester]))
+            $testers[$tester]['errors'] = array();
+          $testers[$tester]['errors'][] = $error ? 1 : 0;
+          if (count($testers[$tester]['errors']) > 100)
+            array_shift($testers[$tester]['errors']);
         }
         if (isset($testerInfo) && is_array($testerInfo)) {
             // keep track of the FIRST idle request as the last work time so we can have an accurate "idle time"
