@@ -1,4 +1,6 @@
 <?php
+require_once('archive.inc');
+
 if(extension_loaded('newrelic')) {
   newrelic_add_custom_tracer('RestoreTest');
 }
@@ -282,7 +284,7 @@ function GetDefaultLocation()
 */
 function delTree($dir, $remove = true)
 {
-  $dir = trim($dir, '/');
+  $dir = rtrim($dir, '/');
   if (is_dir($dir)) {
     $files = scandir($dir);
     foreach( $files as $file ) {
@@ -1005,27 +1007,27 @@ function GetTestInfoHtml($includeScript = true)
     global $admin;
     global $privateInstall;
     $html = '';
-    if($admin || $privateInstall) {
-      $run = null;
-      if (array_key_exists('run', $_REQUEST))
-        $run = $_REQUEST['run'];
-      if (isset($run) &&
-          array_key_exists('testinfo', $test) &&
-          array_key_exists('test_runs', $test['testinfo']) &&
-          array_key_exists($run, $test['testinfo']['test_runs']) &&
-          array_key_exists('tester', $test['testinfo']['test_runs'][$run]))
-        $html .= 'Tester: ' . $test['testinfo']['test_runs'][$run]['tester'] . '<br>';
-      elseif (isset($test['testinfo']['tester']) )
-        $html .= 'Tester: ' . $test['testinfo']['tester'] . '<br>';
-    }
+    $run = null;
+    if (array_key_exists('run', $_REQUEST))
+      $run = $_REQUEST['run'];
+    if (isset($run) &&
+        array_key_exists('testinfo', $test) &&
+        array_key_exists('test_runs', $test['testinfo']) &&
+        array_key_exists($run, $test['testinfo']['test_runs']) &&
+        array_key_exists('tester', $test['testinfo']['test_runs'][$run]))
+      $html .= 'Tester: ' . $test['testinfo']['test_runs'][$run]['tester'] . '<br>';
+    elseif (isset($test['testinfo']['tester']) )
+      $html .= 'Tester: ' . $test['testinfo']['tester'] . '<br>';
     if( $dom )
-        $html .= 'DOM Element: <b>' . $dom . '</b><br>';
+        $html .= 'DOM Element: <b>' . htmlspecialchars($dom) . '</b><br>';
     if( $test['test']['fvonly'] )
         $html .= '<b>First View only</b><br>';
     if( (int)$test['test']['runs'] > 1 )
         $html .= 'Test runs: <b>' . $test['test']['runs'] . '</b><br>';
     if( array_key_exists('authenticated', $test['test']) && (int)$test['test']['authenticated'] == 1)
-        $html .= '<b>Authenticated: ' . $login . '</b><br>';
+        $html .= '<b>Authenticated: ' . htmlspecialchars($login) . '</b><br>';
+    if (isset($test['testinfo']['addCmdLine']) && strlen($test['testinfo']['addCmdLine']))
+        $html .= '<b>Command Line: ' . htmlspecialchars($test['testinfo']['addCmdLine']) . '</b><br>';
     if( array_key_exists('testinfo', $test) && array_key_exists('connectivity', $test['testinfo']) && !strcasecmp($test['testinfo']['connectivity'], 'custom') )
     {
         $html .= "<b>Connectivity:</b> {$test['testinfo']['bwIn']}/{$test['testinfo']['bwOut']} Kbps, {$test['testinfo']['latency']}ms Latency";
@@ -1110,16 +1112,13 @@ function RestoreTest($id)
         ($archive_s3_server && strlen($archive_s3_server))) {
       $restore = false;
       $testInfo = GetTestInfo($id);
-      if (!$testInfo) {
+      if (!$testInfo)
         $restore = true;
-      }
 
-      if( $restore ) {
-        require_once('archive.inc');
+      if( $restore )
         $ret = RestoreArchive($id);
-      } else {
+      else
         $ret = true;
-      }
     } else {
       $ret = true;
     }
@@ -1571,7 +1570,10 @@ function GetTesters($locationId)
                       $total = 0;
                       $count = 0;
                       foreach($tester['errors'] as $error) {
-                        $total += $error;
+                        if ($error !== 0 &&
+                            $error !== 'timeout' &&
+                            $error !== 'Page load timeout')
+                          $total++;
                         $count++;
                       }
                       if ($count > 50)
@@ -1923,7 +1925,7 @@ function UpdateTester($location, $tester, $testerInfo = null, $cpu = null, $erro
         if (isset($error)) {
           if (!array_key_exists('errors', $testers[$tester]))
             $testers[$tester]['errors'] = array();
-          $testers[$tester]['errors'][] = $error ? 1 : 0;
+          $testers[$tester]['errors'][] = $error ? $error : 0;
           if (count($testers[$tester]['errors']) > 100)
             array_shift($testers[$tester]['errors']);
         }
@@ -1967,6 +1969,27 @@ function http_fetch($url) {
   } else {
     $context = stream_context_create(array('http' => array('header'=>'Connection: close', 'timeout' => 600)));
     $ret = file_get_contents($url, false, $context);
+  }
+  return $ret;
+}
+
+function http_fetch_file($url, $file) {
+  $ret = false;
+  if (function_exists('curl_init')) {
+    $fp = fopen ($file, 'w+');
+    if ($fp) {
+      $ch = curl_init($url);
+      if ($ch) {
+        curl_setopt($ch, CURLOPT_FILE, $fp);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_exec($ch);
+        curl_close($ch);
+      }
+      fclose($fp);
+      $ret = filesize($file);
+    }
+  } else {
+    $ret = file_put_contents($file, fopen($url, 'r'));
   }
   return $ret;
 }
