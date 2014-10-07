@@ -62,11 +62,20 @@ function TSViewPostResult(&$test, $id, $testPath, $server, $tsview_name) {
           $rv['availability'][] = 0;
       }
     }
-    
-    TSViewCreate($server, $tsview_name, $metrics);
-    TSViewPost($id, $server, $tsview_name, $fv);
-    if (isset($rv))
-      TSViewPost($id, $server, "{$tsview_name}-repeat-view", $rv);
+  
+    $spof="";
+    if ($test['label'] == 'SPOF'){
+      $spof="-SPOF";
+    }
+    $datasource="{$tsview_name}{$spof}";
+  
+    TSViewCreate($server, $datasource, $metrics);
+    TSViewPost($id, $server, $datasource, $fv);
+    if (isset($rv)){
+      TSViewCreate($server, "{$datasource}-repeat-view", $metrics);
+      TSViewPost($id, $server, "{$datasource}-repeat-view", $rv);
+    }
+  
   }
 }
 
@@ -102,7 +111,7 @@ function TSViewCreate($server, $tsview_name, &$metrics) {
 function TSViewPost($id, $server, $tsview_name, &$stats) {
   $host  = $_SERVER['HTTP_HOST'];
   $result_url = "http://$host/results.php?test=$id";
-  $data = array('recordTimestamp' => time(),
+  $data = array('recordTimestamp' => round(microtime(true) * 1000),
                 'points' => array(),
                 'pointsDataType' => 'INT64',
                 'configPairs' => array('result_url' => $result_url));
