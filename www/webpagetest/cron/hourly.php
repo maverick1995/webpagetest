@@ -3,8 +3,12 @@
 chdir('..');
 include 'common.inc';
 ignore_user_abort(true);
-set_time_limit(1200);
+set_time_limit(3600);
 error_reporting(E_ALL);
+
+$lock = Lock("cron-60", false, 3600);
+if (!isset($lock))
+  exit(0);
 
 GitUpdate();
 AgentUpdate();
@@ -25,6 +29,8 @@ function GitUpdate() {
 function AgentUpdate() {
   $updateServer = GetSetting('agentUpdate');
   if ($updateServer && strlen($updateServer)) {
+    if (!is_dir('./work/update'))
+      mkdir('./work/update', 0777, true); 
     $url = $updateServer . 'work/getupdates.php';
     $updates = json_decode(http_fetch($url), true);
     if ($updates && is_array($updates) && count($updates)) {

@@ -40,6 +40,8 @@ if (isset($locations) && is_array($locations) && count($locations) &&
     (!array_key_exists('freedisk', $_GET) || (float)$_GET['freedisk'] > 0.1)) {
   shuffle($locations);
   $location = trim($locations[0]);
+  if (!$is_done && array_key_exists('reboot', $_GET))
+    $is_done = GetReboot();
   if (!$is_done && array_key_exists('ver', $_GET))
     $is_done = GetUpdate();
   if (!$is_done && @$_GET['video'])
@@ -359,6 +361,7 @@ function CheckCron() {
     if (is_file('./settings/benchmarks/benchmarks.txt') && 
         is_file('./benchmarks/cron.php'))
       SendAsyncRequest('/benchmarks/cron.php');
+    SendAsyncRequest('/cron/5min.php');
     if (is_file('./jpeginfo/cleanup.php'))
       SendAsyncRequest('/jpeginfo/cleanup.php');
     if ($minutes15)
@@ -435,5 +438,29 @@ function ProcessTestShard(&$testInfo, &$test, &$delete) {
         $delete = false;
     }
   }
+}
+
+/**
+* See if we need to reboot this tester
+* 
+*/
+function GetReboot() {
+  global $location;
+  global $pc;
+  global $ec2;
+  $rebooted = false;
+  $name = @strlen($ec2) ? $ec2 : $pc;
+  if (isset($name) && strlen($name) && isset($location) && strlen($location)) {
+    $rebootFile = "./work/jobs/$location/$name.reboot";
+    if (is_file($rebootFile)) {
+      unlink($rebootFile);
+      header('Content-type: text/plain');
+      header("Cache-Control: no-cache, must-revalidate");
+      header("Expires: Sat, 26 Jul 1997 05:00:00 GMT");
+      echo "Reboot";
+      $rebooted = true;
+    }
+  }
+  return $rebooted;
 }
 ?>
