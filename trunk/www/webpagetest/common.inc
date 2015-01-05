@@ -36,6 +36,8 @@ if (function_exists('curl_init')) {
         curl_setopt($CURL_CONTEXT, CURLOPT_DNS_CACHE_TIMEOUT, 600);
         curl_setopt($CURL_CONTEXT, CURLOPT_MAXREDIRS, 10);
         curl_setopt($CURL_CONTEXT, CURLOPT_TIMEOUT, 600);
+        curl_setopt($CURL_CONTEXT, CURLOPT_SSL_VERIFYHOST, 0);
+        curl_setopt($CURL_CONTEXT, CURLOPT_SSL_VERIFYPEER, 0);
     }
 } else
     $CURL_CONTEXT = false;
@@ -69,7 +71,7 @@ if (array_key_exists('HTTP_USER_AGENT', $_SERVER) &&
   $userIsBot = true;
 
 // constants
-define('VER_WEBPAGETEST', '2.15');   // webpagetest version
+define('VER_WEBPAGETEST', '2.16');   // webpagetest version
 define('VER_CSS', 67);           // version of the sitewide css file
 define('VER_JS', 31);            // version of the sitewide javascript file
 define('VER_JS_TEST', 29);       // version of the javascript specific to the test pages
