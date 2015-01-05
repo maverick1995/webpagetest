@@ -39,6 +39,27 @@
 
     // load the location information
     $locations = LoadLocationsIni();
+    // See if we need to load a subset of the locations
+    $filter = null;
+    if (isset($_REQUEST['k']) && preg_match('/^(?P<prefix>[0-9A-Za-z]+)\.(?P<key>[0-9A-Za-z]+)$/', $_REQUEST['k'], $matches)) {
+      $filter = $matches['prefix'];
+      foreach ($locations as $name => $location) {
+        if (isset($location['browser'])) {
+          $ok = false;
+          if (isset($location['allowKeys'])) {
+            $keys = explode(',', $location['allowKeys']);
+            foreach($keys as $k) {
+              if ($k == $filter) {
+                $ok = true;
+                break;
+              }
+            }
+          }
+          if (!$ok)
+            unset($locations[$name]);
+        }
+      }
+    }
     BuildLocations($locations);
 
     // see if we are running a relay test
@@ -382,6 +403,8 @@
                 unset($test['spam']);
             $test['priority'] =  0;
         }
+        
+        $test['created'] = time();
 
         // the API key requirements are for all test paths
         $test['vd'] = $req_vd;
@@ -720,6 +743,8 @@
                 if( $xml )
                 {
                     header ('Content-type: text/xml');
+                    header("Cache-Control: no-cache, must-revalidate");
+                    header("Expires: Sat, 26 Jul 1997 05:00:00 GMT");
                     echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
                     echo "<response>\n";
                     echo "<statusCode>400</statusCode>\n";
@@ -736,6 +761,8 @@
                     if( strlen($req_r) )
                         $ret['requestId'] = $req_r;
                     header ("Content-type: application/json");
+                    header("Cache-Control: no-cache, must-revalidate");
+                    header("Expires: Sat, 26 Jul 1997 05:00:00 GMT");
                     echo json_encode($ret);
                 }
                 else
@@ -883,6 +910,17 @@ function ValidateKey(&$test, &$error, $key = null)
     }elseif( isset($key) || (isset($test['key']) && strlen($test['key'])) ){
       if( isset($test['key']) && strlen($test['key']) && !isset($key) )
         $key = $test['key'];
+      // see if it was an auto-provisioned key
+      if (preg_match('/^(?P<prefix>[0-9A-Za-z]+)\.(?P<key>[0-9A-Za-z]+)$/', $key, $matches)) {
+        $prefix = $matches['prefix'];
+        $db = new SQLite3(__DIR__ . "/dat/{$prefix}_api_keys.db");
+        $k = $db->escapeString($matches['key']);
+        $info = $db->querySingle("SELECT key_limit FROM keys WHERE key='$k'", true);
+        $db->close();
+        if (isset($info) && is_array($info) && isset($info['key_limit']))
+          $keys[$key] = array('limit' => $info['key_limit']);
+      }
+      
       // validate their API key and enforce any rate limits
       if( array_key_exists($key, $keys) ){
         if (array_key_exists('default location', $keys[$key]) &&
@@ -944,7 +982,12 @@ function ValidateKey(&$test, &$error, $key = null)
           $usingAPI = true;
       }
     }elseif (!isset($admin) || !$admin) {
-      $error = 'An error occurred processing your request.  Please reload the testing page and try submitting your test request again. (missing API key)';
+      $error = 'An error occurred processing your request (missing API key).';
+      if (GetSetting('allow_getkeys')) {
+        $protocol = ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on') || (isset($_SERVER['HTTP_SSL']) && $_SERVER['HTTP_SSL'] == 'On')) ? 'https' : 'http';
+        $url = "$protocol://{$_SERVER['HTTP_HOST']}/getkey.php";
+        $error .= "  If you do not have an API key assigned you can request one at $url";
+      }
     }
   }
 }
@@ -1141,6 +1184,8 @@ function ValidateScript(&$script, &$error)
                 $url = trim($tokens[1]);
                 if (stripos($url, '%URL%') !== false)
                     $url = null;
+                else
+                    CheckUrl($url);
             } elseif( !strcasecmp($command, 'loadVariables') )
                 $error = "loadVariables is not a supported command for uploaded scripts.";
             elseif( !strcasecmp($command, 'loadFile') )
@@ -1439,6 +1484,7 @@ function SendToRelay(&$test, &$out)
 
     $data .= "\r\n--$boundary--\r\n";
 
+
     $params = array('http' => array(
                        'method' => 'POST',
                        'header' => "Connection: close\r\nContent-Type: multipart/form-data; boundary=$boundary",
@@ -1622,10 +1668,11 @@ function CheckUrl($url)
     $ok = true;
     global $user;
     global $usingAPI;
+    global $error;
     $date = gmdate("Ymd");
     if( strncasecmp($url, 'http:', 5) && strncasecmp($url, 'https:', 6))
         $url = 'http://' . $url;
-    if (!isset($user) && !$usingAPI) {
+    if (!$usingAPI) {
         $blockUrls = file('./settings/blockurl.txt', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
         $blockHosts = file('./settings/blockdomains.txt', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
         $blockAuto = file('./settings/blockdomainsauto.txt', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
@@ -1669,6 +1716,14 @@ function CheckUrl($url)
                 }
             }
         }
+    }
+    
+    if ($ok) {
+      $ok = SBL_Check($url, $message);
+      if (!$ok) {
+        $error = "<br>Sorry, your test was blocked because $url is suspected of being used for <a href=\"http://www.antiphishing.org/\">phishing</a> or <a href=\"http://www.stopbadware.org/\">hosting malware</a>.<br><br>Advisory provided by <a href=\"http://code.google.com/apis/safebrowsing/safebrowsing_faq.html#whyAdvisory\">Google</a>.";
+        logMsg("{$_SERVER['REMOTE_ADDR']}: $url failed Safe Browsing check: $message", "./log/{$date}-blocked.log", true);
+      }
     }
 
     return $ok;

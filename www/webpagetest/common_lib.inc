@@ -3,6 +3,7 @@ require_once('archive.inc');
 
 if(extension_loaded('newrelic')) {
   newrelic_add_custom_tracer('RestoreTest');
+  newrelic_add_custom_tracer('SBL_Check');
 }
 
 define('VIDEO_CODE_VERSION', 19);
@@ -100,6 +101,7 @@ function GetLocationKey($location) {
 
 // Load the locations from locations.ini and merge-in the ec2 locations if necessary
 function LoadLocationsIni() {
+  $ec2_allow = GetSetting('ec2_allow');
   $locations = parse_ini_file(__DIR__ . '/settings/locations.ini', true);
   if (GetSetting('ec2_locations')) {
     $ec2 = parse_ini_file(__DIR__ . '/settings/ec2_locations.ini', true);
@@ -116,11 +118,38 @@ function LoadLocationsIni() {
         if (!isset($locations['locations']['default']) && isset($ec2['locations']['default']))
           $locations['locations']['default'] = $ec2['locations']['default'];
         // add all of the individual locations
-        foreach($ec2 as $name => $group)
-          if ($name !== 'locations')
+        foreach($ec2 as $name => $group) {
+          if ($name !== 'locations') {
             $locations[$name] = $group;
+            if ($ec2_allow)
+              $locations[$name]['allowKeys'] = $ec2_allow;
+          }
+        }
       } else {
         $locations = $ec2;
+      }
+      
+      // see if we have a setting to override the default location
+      $default = GetSetting('EC2.default');
+      if ($default && strlen($default)) {
+        $defaultGroup = null;
+        
+        // Figure out what group the default location is in
+        foreach($ec2 as $name => $group) {
+          if ($name !== 'locations' && !isset($group['browser']) && isset($group[1])) {
+            foreach ($group as $key => $value) {
+              if ($value == $default) {
+                $defaultGroup = $name;
+                break 2;
+              }
+            }
+          }
+        }
+        
+        if (isset($defaultGroup)) {
+          $locations['locations']['default'] = $defaultGroup;
+          $locations[$defaultGroup]['default'] = $default;
+        }
       }
     }
   }
@@ -1253,16 +1282,17 @@ function GetPendingTests($loc, &$count, &$avgTime)
                     $stats = $pheanstalk->statsTube($tube);
                     $total += intval($stats['current-jobs-ready']);
                     if (!$priority)
-                        $count = intval($stats['current-jobs-ready']);
+                        $count += intval($stats['current-jobs-ready']);
                 } catch(Exception $e) {
                 }
             }
-        } elseif( LoadJobQueue("./work/jobs/$location", $queue) ) {
+        }
+        if( LoadJobQueue("./work/jobs/$location", $queue) ) {
             foreach( $queue as $priority => &$q ) {
                 if ($priority < 9)
                     $total += count($q);
             }
-            $count = count($queue[0]);
+            $count += count($queue[0]);
         }
     }
     return $total;
@@ -1275,23 +1305,26 @@ function GetPendingTests($loc, &$count, &$avgTime)
 */
 function GetQueueLengths($location) {
     $queues = array();
+    for ($priority = 0; $priority <= 9; $priority++)
+      $queues[$priority] = 0;
     $beanstalkd = GetSetting('beanstalkd');
     if ($beanstalkd && strlen($beanstalkd)) {
         require_once('./lib/beanstalkd/pheanstalk_init.php');
         $pheanstalk = new Pheanstalk_Pheanstalk($beanstalkd);
         for ($priority = 0; $priority <= 9; $priority++) {
-            $queues[$priority] = 0;
             $tube = 'wpt.' . md5("./work/jobs/$location") . ".$priority";
             try {
                 $stats = $pheanstalk->statsTube($tube);
-                $queues[$priority] = intval($stats['current-jobs-ready']);
+                $queues[$priority] += intval($stats['current-jobs-ready']);
             } catch(Exception $e) {
             }
         }
-    } elseif( LoadJobQueue("./work/jobs/$location", $queue) ) {
-        foreach( $queue as $priority => &$q )
-            $queues[$priority] = count($q);
     }
+    if( LoadJobQueue("./work/jobs/$location", $queue) ) {
+        foreach( $queue as $priority => &$q )
+            $queues[$priority] += count($q);
+    }
+    
     return $queues;
 }
 
@@ -1326,25 +1359,30 @@ function GetTesterCount($location)
 */
 function AddJobFile($workDir, $file, $priority, $queue_limit = 0)
 {
-    $ret = false;
-
-    $beanstalkd = GetSetting('beanstalkd');
-    if ($beanstalkd && strlen($beanstalkd)) {
-        try {
-            $tube = 'wpt.' . md5($workDir) . ".$priority";
-            require_once('./lib/beanstalkd/pheanstalk_init.php');
-            $pheanstalk = new Pheanstalk_Pheanstalk($beanstalkd);
-            $pheanstalk->putInTube($tube, $file);
-            $ret = true;
-        } catch(Exception $e) {
-        }
-    } elseif (LoadJobQueue($workDir, $queue)) {
-        if( !$queue_limit || count($queue[$priority]) < $queue_limit )
-            if( array_push($queue[$priority], $file) )
-                $ret = SaveJobQueue($workDir, $queue);
+  $ret = false;
+  
+  $use_beanstalk = false;
+  $beanstalkd = GetSetting('beanstalkd');
+  if ($beanstalkd && strlen($beanstalkd)) {
+    if ($priority || !GetSetting('beanstalk_api_only'))
+      $use_beanstalk = true;
+  }
+  if ($use_beanstalk) {
+    try {
+      $tube = 'wpt.' . md5($workDir) . ".$priority";
+      require_once('./lib/beanstalkd/pheanstalk_init.php');
+      $pheanstalk = new Pheanstalk_Pheanstalk($beanstalkd);
+      $pheanstalk->putInTube($tube, $file);
+      $ret = true;
+    } catch(Exception $e) {
     }
+  } elseif (LoadJobQueue($workDir, $queue)) {
+    if( !$queue_limit || count($queue[$priority]) < $queue_limit )
+      if( array_push($queue[$priority], $file) )
+        $ret = SaveJobQueue($workDir, $queue);
+  }
 
-    return $ret;
+  return $ret;
 }
 
 /**
@@ -1352,29 +1390,34 @@ function AddJobFile($workDir, $file, $priority, $queue_limit = 0)
 */
 function AddJobFileHead($workDir, $file, $priority, $atFront = false)
 {
-    $ret = false;
+  $ret = false;
 
-    $beanstalkd = GetSetting('beanstalkd');
-    if ($beanstalkd && strlen($beanstalkd)) {
-        try {
-            $tube = 'wpt.' . md5($workDir) . ".$priority";
-            require_once('./lib/beanstalkd/pheanstalk_init.php');
-            $pheanstalk = new Pheanstalk_Pheanstalk($beanstalkd);
-            $pheanstalk->putInTube($tube, $file, '0');
-            $ret = true;
-        } catch(Exception $e) {
-        }
-    } elseif (LoadJobQueue($workDir, $queue)) {
-        // we actually want to insert it as the second test if there is already a queue
-        if (!$atFront && count($queue[$priority]))
-            $first = array_shift($queue[$priority]);
-        if (array_unshift($queue[$priority], $file)) {
-            if (!$atFront && isset($first) && strlen($first))
-                array_unshift($queue[$priority], $first);
-            $ret = SaveJobQueue($workDir, $queue);
-        }
+  $use_beanstalk = false;
+  $beanstalkd = GetSetting('beanstalkd');
+  if ($beanstalkd && strlen($beanstalkd)) {
+    if ($priority || !GetSetting('beanstalk_api_only'))
+      $use_beanstalk = true;
+  }
+  if ($use_beanstalk) {
+    try {
+      $tube = 'wpt.' . md5($workDir) . ".$priority";
+      require_once('./lib/beanstalkd/pheanstalk_init.php');
+      $pheanstalk = new Pheanstalk_Pheanstalk($beanstalkd);
+      $pheanstalk->putInTube($tube, $file, '0');
+      $ret = true;
+    } catch(Exception $e) {
     }
-    return $ret;
+  } elseif (LoadJobQueue($workDir, $queue)) {
+    // we actually want to insert it as the second test if there is already a queue
+    if (!$atFront && count($queue[$priority]))
+      $first = array_shift($queue[$priority]);
+    if (array_unshift($queue[$priority], $file)) {
+      if (!$atFront && isset($first) && strlen($first))
+        array_unshift($queue[$priority], $first);
+      $ret = SaveJobQueue($workDir, $queue);
+    }
+  }
+  return $ret;
 }
 
 /**
@@ -1383,68 +1426,72 @@ function AddJobFileHead($workDir, $file, $priority, $atFront = false)
 function GetJobFile($workDir, &$priority, $tester = null, $testerIndex = null, $testerCount = null) {
     $file = null;
 
-    $beanstalkd = GetSetting('beanstalkd');
-    if ($beanstalkd && strlen($beanstalkd)) {
+    if (LoadJobQueue($workDir, $queue)) {
+      $modified = false;
+      $priority = 0;
+      while (!isset($file) && $priority <= 9) {
+        // Pick any tests without affinity or whose affinity
+        // matches the existing tester
+        if (isset($queue[$priority]) && count($queue[$priority])) {
+          foreach ($queue[$priority] as $index => $job_file) {
+            if (preg_match('/Affinity(?P<affinity>[a-zA-Z0-9\-_]+)\.(?P<id>[a-zA-Z0-9\_]+)\.(p[0-9]|url)$/', $job_file, $matches)) {
+              $affinity = $matches['affinity'];
+              if (preg_match('/^Tester(?P<tester>[a-zA-Z0-9\-_]+$)/', $affinity, $matches)) {
+                if (isset($tester) && !strcasecmp($tester,$matches['tester']))
+                  $file = $job_file;
+              } elseif (isset($testerIndex) && isset($testerCount) &&
+                        $testerIndex >= 0 && $testerIndex < $testerCount &&
+                        preg_match('/^[0-9]+$/', $affinity, $matches)) {
+                $matchIndex = intval($affinity) % $testerCount;
+                if ($matchIndex == $testerIndex)
+                  $file = $job_file;
+              }
+            } else {
+              // no affinity, this one works
+              $file = $job_file;
+            }
+            if (isset($file)) {
+              unset($queue[$priority][$index]);
+              $modified = true;
+              if (is_file("$workDir/$file"))
+                break;
+              else
+                unset($file);
+            }
+          }
+        }
+        if (!isset($file))
+          $priority++;
+      }
+
+      if ($modified)
+        SaveJobQueue($workDir, $queue);
+    }
+    
+    if (!isset($file)) {
+      $beanstalkd = GetSetting('beanstalkd');
+      if ($beanstalkd && strlen($beanstalkd)) {
         require_once('./lib/beanstalkd/pheanstalk_init.php');
         $pheanstalk = new Pheanstalk_Pheanstalk($beanstalkd);
         $priority = 0;
         while (!isset($file) && $priority <= 9) {
-            $found = false;
-            try {
-                $tube = 'wpt.' . md5($workDir) . ".$priority";
-                $job = $pheanstalk->reserveFromTube($tube, 0);
-                if ($job !== false) {
-                    $found = true;
-                    $file = $job->getData();
-                    if (isset($file) && !is_file("$workDir/$file"))
-                        unset($file);
-                    $pheanstalk->delete($job);
-                }
-            } catch(Exception $e) {
+          $found = false;
+          try {
+            $tube = 'wpt.' . md5($workDir) . ".$priority";
+            $job = $pheanstalk->reserveFromTube($tube, 0);
+            if ($job !== false) {
+              $found = true;
+              $file = $job->getData();
+              if (isset($file) && !is_file("$workDir/$file"))
+                unset($file);
+              $pheanstalk->delete($job);
             }
-            if (!$found && !isset($file))
-                $priority++;
+          } catch(Exception $e) {
+          }
+          if (!$found && !isset($file))
+            $priority++;
         }
-    } elseif (LoadJobQueue($workDir, $queue)) {
-        $modified = false;
-        $priority = 0;
-        while (!isset($file) && $priority <= 9) {
-            // Pick any tests without affinity or whose affinity
-            // matches the existing tester
-            if (isset($queue[$priority]) && count($queue[$priority])) {
-              foreach ($queue[$priority] as $index => $job_file) {
-                if (preg_match('/Affinity(?P<affinity>[a-zA-Z0-9\-_]+)\.(?P<id>[a-zA-Z0-9\_]+)\.(p[0-9]|url)$/', $job_file, $matches)) {
-                  $affinity = $matches['affinity'];
-                  if (preg_match('/^Tester(?P<tester>[a-zA-Z0-9\-_]+$)/', $affinity, $matches)) {
-                    if (isset($tester) && !strcasecmp($tester,$matches['tester']))
-                      $file = $job_file;
-                  } elseif (isset($testerIndex) && isset($testerCount) &&
-                            $testerIndex >= 0 && $testerIndex < $testerCount &&
-                            preg_match('/^[0-9]+$/', $affinity, $matches)) {
-                    $matchIndex = intval($affinity) % $testerCount;
-                    if ($matchIndex == $testerIndex)
-                      $file = $job_file;
-                  }
-                } else {
-                  // no affinity, this one works
-                  $file = $job_file;
-                }
-                if (isset($file)) {
-                  unset($queue[$priority][$index]);
-                  $modified = true;
-                  if (is_file("$workDir/$file"))
-                    break;
-                  else
-                    unset($file);
-                }
-              }
-            }
-            if (!isset($file))
-                $priority++;
-        }
-
-        if ($modified)
-            SaveJobQueue($workDir, $queue);
+      }
     }
 
     return $file;
@@ -1455,31 +1502,35 @@ function GetJobFile($workDir, &$priority, $tester = null, $testerIndex = null, $
 */
 function FindJobPosition($workDir, $testId)
 {
-    $count = 0;
-    $found = false;
+  $count = 0;
+  $found = false;
 
+  if( LoadJobQueue($workDir, $queue) ) {
+    $priority = 0;
+    while( !$found && $priority <= 9 ) {
+      foreach($queue[$priority] as $file) {
+        if( stripos($file, $testId) !== false ) {
+          $found = true;
+          break;
+        } elseif( !$found ) {
+          $count++;
+        }
+      }
+      $priority++;
+    }
+  }
+  
+  if (!$found) {
     $beanstalkd = GetSetting('beanstalkd');
     if ($beanstalkd && strlen($beanstalkd)) {
-        $found = true;
-    } elseif( LoadJobQueue($workDir, $queue) ) {
-        $priority = 0;
-        while( !$found && $priority <= 9 ) {
-            foreach($queue[$priority] as $file) {
-                if( stripos($file, $testId) !== false ) {
-                    $found = true;
-                    break;
-                }
-                elseif( !$found )
-                    $count++;
-            }
-            $priority++;
-        }
+      $found = true;
     }
+  }
 
-    if( !$found )
-        $count = -1;
+  if( !$found )
+    $count = -1;
 
-    return $count;
+  return $count;
 }
 
 /**
@@ -1487,69 +1538,76 @@ function FindJobPosition($workDir, $testId)
 */
 function LoadJobQueue($workDir, &$queue)
 {
+  $ret = false;
+  if (!GetSetting('beanstalkd') || GetSetting('beanstalk_api_only')) {
     $ret = true;
     if (isset($workDir) && strlen($workDir)) {
-        $queue = null;
-        $queueName = sha1($workDir);
-        $queueFile = "./tmp/$queueName.queue";
-        if( gz_is_file($queueFile) ) {
-            $queue = json_decode(gz_file_get_contents($queueFile), true);
-            // re-scan the directory if the queue is empty
-            if (isset($queue)) {
-                if (is_array($queue)) {
-                    $empty = true;
-                    foreach ($queue as &$p) {
-                        if (count($p)) {
-                            $empty = false;
-                            break;
-                        }
-                    }
-                    if ($empty)
-                        unset($queue);
-                } else {
-                    unset($queue);
-                }
+      $queue = null;
+      $queueName = sha1($workDir);
+      $queueFile = "./tmp/$queueName.queue";
+      if( gz_is_file($queueFile) ) {
+        $queue = json_decode(gz_file_get_contents($queueFile), true);
+        // re-scan the directory if the queue is empty
+        if (isset($queue)) {
+          if (is_array($queue)) {
+            $empty = true;
+            foreach ($queue as &$p) {
+              if (count($p)) {
+                $empty = false;
+                break;
+              }
             }
+            if ($empty)
+              unset($queue);
+          } else {
+            unset($queue);
+          }
+        }
+      }
+
+      if (!isset($queue) && !GetSetting('beanstalkd')) {
+        // build the queue from disk
+        $files = array();
+        $f = scandir($workDir);
+        if ($f !== false) {
+          foreach( $f as $file ) {
+            if( is_file("$workDir/$file") ) {
+              $fileTime = filemtime("$workDir/$file");
+              if( $fileTime && !isset($files[$fileTime]) )
+                $files[$fileTime] = $file;
+              else
+                $files[] = $file;
+            }
+          }
         }
 
-        if (!isset($queue)) {
-            // build the queue from disk
-            $files = array();
-            $f = scandir($workDir);
-            if ($f !== false) {
-                foreach( $f as $file ) {
-                    if( is_file("$workDir/$file") ) {
-                        $fileTime = filemtime("$workDir/$file");
-                        if( $fileTime && !isset($files[$fileTime]) )
-                            $files[$fileTime] = $file;
-                        else
-                            $files[] = $file;
-                    }
-                }
-            }
+        // sort it by time
+        ksort($files);
 
-            // sort it by time
-            ksort($files);
+        // now add them to the various priority queues
+        $queue = array();
+        for($priority = 0; $priority <= 9; $priority++)
+          $queue[$priority] = array();
 
-            // now add them to the various priority queues
-            $queue = array();
-            for($priority = 0; $priority <= 9; $priority++)
-                $queue[$priority] = array();
-
-            foreach($files as $file) {
-                if ( stripos($file, '.url') )
-                    $queue[0][] = $file;
-                else if (preg_match('/\.p([1-9])/i', $file, $matches)) {
-                    $priority = (int)$matches[1];
-                    $queue[$priority][] = $file;
-                }
-            }
-
-            SaveJobQueue($workDir, $queue);
+        foreach($files as $file) {
+          if ( stripos($file, '.url') )
+            $queue[0][] = $file;
+          else if (preg_match('/\.p([1-9])/i', $file, $matches)) {
+            $priority = (int)$matches[1];
+            $queue[$priority][] = $file;
+          }
         }
+
+        SaveJobQueue($workDir, $queue);
+      } elseif (!isset($queue)) {
+        $queue = array();
+        for($priority = 0; $priority <= 9; $priority++)
+          $queue[$priority] = array();
+      }
     }
+  }
 
-    return $ret;
+  return $ret;
 }
 
 /**
@@ -1570,7 +1628,7 @@ function SaveJobQueue($workDir, &$queue)
 *
 * @param mixed $dir
 */
-function GetTesters($locationId)
+function GetTesters($locationId, $includeOffline = false)
 {
     $location = array();
 
@@ -1592,9 +1650,17 @@ function GetTesters($locationId)
             $location['testers'] = array();
             foreach( $testers as $id => $tester )
             {
-                if( !array_key_exists('offline', $tester) || !$tester['offline'] )
+                if( $includeOffline || !array_key_exists('offline', $tester) || !$tester['offline'] )
                 {
-                    $entry = array('pc' => @$tester['pc'], 'ec2' => @$tester['ec2'], 'ip' => @$tester['ip'], 'version' => @$tester['ver'], 'freedisk' => @$tester['freedisk'], 'ie' => @$tester['ie'], 'dns' => @$tester['dns'], 'GPU' => @$tester['GPU']);
+                    $entry = array('pc' => @$tester['pc'],
+                                   'ec2' => @$tester['ec2'],
+                                   'ip' => @$tester['ip'],
+                                   'version' => @$tester['ver'],
+                                   'freedisk' => @$tester['freedisk'],
+                                   'ie' => @$tester['ie'],
+                                   'dns' => @$tester['dns'],
+                                   'GPU' => @$tester['GPU'],
+                                   'offline' => @$tester['offline']);
 
                     if (array_key_exists('cpu', $tester) && is_array($tester['cpu'])) {
                       $total = 0;
@@ -1842,7 +1908,10 @@ function xml_entities($text, $charset = 'UTF-8')
  * @param mixed $response
  */
 function json_response(&$response) {
-    header ("Content-type: application/json; charset=utf-8");
+    header("Content-type: application/json; charset=utf-8");
+    header("Cache-Control: no-cache, must-revalidate");
+    header("Expires: Sat, 26 Jul 1997 05:00:00 GMT");
+
     if( array_key_exists('callback', $_REQUEST) && strlen($_REQUEST['callback']) )
         echo "{$_REQUEST['callback']}(";
 
@@ -2467,4 +2536,74 @@ function numRunsFromTestInfo($testInfo) {
   return $runs;
 }
 
+/**
+* Update the safe browsing list (if configured)
+* 
+*/
+function SBL_Update() {
+  $key = GetSetting('sbl_api_key');
+  if ($key && strlen($key) && 
+      function_exists('apc_fetch') &&
+      function_exists('apc_store')) {
+    $next_update = apc_fetch('sbl_next_update');
+    if (!$next_update || time() > $next_update) {
+      $db = __DIR__ . '/dat/sbl.db';
+      if (is_file($db)) {
+        $db = realpath($db);
+      } else {
+        file_put_contents($db, '');
+        $db = realpath($db);
+        unlink($db);
+      }
+      $cmd = "gglsbl_client.py --api-key $key --db-path \"$db\" --onetime --debug 2>&1";
+      exec($cmd, $out);
+      $next_update = 0;
+      if (isset($out) && is_array($out) && count($out)) {
+        $updated = 0;
+        $seconds = 0;
+        foreach($out as $line) {
+          if (stripos($line, "Storing sub chunk") !== false) {
+            $updated++;
+          } elseif (preg_match('/Next query will be delayed (?P<seconds>[0-9]+) seconds/', $line, $matches)) {
+            $seconds = intval($matches['seconds']);
+          }
+        }
+        if ($updated)
+          $seconds = 0;
+        $next_update = time() + $seconds;
+      }
+      apc_store('sbl_next_update', $next_update);
+    } else {
+      $seconds = $next_update - time();
+    }
+  }
+}
+
+/**
+* Check an URL against the SBL
+* 
+* @param mixed $url
+*/
+function SBL_Check($url, &$message) {
+  $ok = true;
+  $db = __DIR__ . '/dat/sbl.db';
+  $key = GetSetting('sbl_api_key');
+  if ($key && strlen($key) && is_file($db)) {
+    $db = realpath($db);
+    $url = escapeshellarg($url);
+    $cmd = "gglsbl_client.py --api-key $key --db-path \"$db\" --check-url $url 2>&1";
+    exec($cmd, $out);
+    if (isset($out) && is_array($out) && count($out)) {
+      foreach($out as $line) {
+        if (stripos($line, 'is blacklisted') !== false) {
+          $ok = false;
+          $message = trim($line);
+          logMsg(trim($line), __DIR__ . '/log/sbl.log', true);
+          break;
+        }
+      }
+    }
+  }
+  return $ok;
+}
 ?>
