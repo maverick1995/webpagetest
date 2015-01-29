@@ -6,6 +6,8 @@ if(extension_loaded('newrelic')) {
   newrelic_add_custom_tracer('FindAVIViewport');
   newrelic_add_custom_tracer('EliminateDuplicateAVIFiles');
   newrelic_add_custom_tracer('ProcessVideoFrames');
+  newrelic_add_custom_tracer('CreateHistogram');
+  newrelic_add_custom_tracer('PythonVisualMetrics');
 }
 
 /**
@@ -53,27 +55,13 @@ function ProcessAVIVideo(&$test, $testPath, $run, $cached) {
   $cachedText = '';
   if( $cached )
     $cachedText = '_Cached';
-  $videoFile = "$testPath/$run{$cachedText}_video.avi";
+  $videoFile = "$testPath/$run{$cachedText}_video.mp4";
   $crop = '';
   if (!is_file($videoFile))
-    $videoFile = "$testPath/$run{$cachedText}_video.mp4";
-  if (!is_file($videoFile)) {
-    $crop = ',crop=in_w:in_h-80:0:80';
+    $videoFile = "$testPath/$run{$cachedText}_video.avi";
+  if (!is_file($videoFile))
     $videoFile = "$testPath/$run{$cachedText}_appurify.mp4";
-  }
-  // trim the video to align with the capture if we have timestamps for both
-  $renderStart = null;
-  if (array_key_exists('appurify_tests', $test) &&
-      is_array($test['appurify_tests']) &&
-      array_key_exists($run, $test['appurify_tests']) &&
-      is_array($test['appurify_tests'][$run])) {
-    require_once('page_data.inc');
-    $page_data = loadPageRunData($testPath, $run, $cached);
-    if (isset($page_data) &&
-        is_array($page_data) &&
-        array_key_exists('render', $page_data))
-      $renderStart = $page_data['render'];
-  }
+    
   if (is_file($videoFile)) {
     $videoDir = "$testPath/video_$run" . strtolower($cachedText);
     if (!is_file("$videoDir/video.json")) {
@@ -84,17 +72,19 @@ function ProcessAVIVideo(&$test, $testPath, $run, $cached) {
       $videoFile = realpath($videoFile);
       $videoDir = realpath($videoDir);
       if (strlen($videoFile) && strlen($videoDir)) {
-        $crop = FindVideoCrop($videoFile, $videoDir);
-        if (Video2PNG($videoFile, $videoDir, $crop)) {
-          $startOffset = DevToolsGetVideoOffset($testPath, $run, $cached, $endTime);
-          FindAVIViewport($videoDir, $startOffset, $viewport);
-          EliminateDuplicateAVIFiles($videoDir, $viewport);
-          $lastImage = ProcessVideoFrames($videoDir, $renderStart, $viewport);
-          $screenShot = "$testPath/$run{$cachedText}_screen.jpg";
-          if (isset($lastImage) && is_file($lastImage)) {
-            //unlink($videoFile);
-            if (!is_file($screenShot))
-              copy($lastImage, $screenShot);
+        if (!PythonVisualMetrics($videoFile, $videoDir, $testPath, $run, $cached)) {
+          $crop = FindVideoCrop($videoFile, $videoDir);
+          if (Video2PNG($videoFile, $videoDir, $crop)) {
+            $startOffset = DevToolsGetVideoOffset($testPath, $run, $cached, $endTime);
+            FindAVIViewport($videoDir, $startOffset, $viewport);
+            EliminateDuplicateAVIFiles($videoDir, $viewport);
+            $lastImage = ProcessVideoFrames($videoDir, $viewport);
+            $screenShot = "$testPath/$run{$cachedText}_screen.jpg";
+            if (isset($lastImage) && is_file($lastImage)) {
+              //unlink($videoFile);
+              if (!is_file($screenShot))
+                copy($lastImage, $screenShot);
+            }
           }
         }
       }
@@ -130,7 +120,7 @@ function Video2PNG($infile, $outdir, $crop) {
   }
 
   if (isset($decimate)) {
-    $command = "ffmpeg -v debug -i \"$infile\" -vsync 0 -vf \"{$crop}scale=iw*min(400/iw\,400/ih):ih*min(400/iw\,400/ih),$decimate=hi=64:lo=640:frac=0.001\" \"$outdir/img-%d.png\" 2>&1";
+    $command = "ffmpeg -v debug -i \"$infile\" -vsync 0 -vf \"{$crop}scale=iw*min(400/iw\,400/ih):ih*min(400/iw\,400/ih),$decimate=0:64:640:0.001\" \"$outdir/img-%d.png\" 2>&1";
     $result;
     exec($command, $output, $result);
     if ($output && is_array($output) && count($output)) {
@@ -165,10 +155,9 @@ function Video2PNG($infile, $outdir, $crop) {
 * 
 * @param mixed $videoDir
 */
-function ProcessVideoFrames($videoDir, $renderStart, $viewport) {
+function ProcessVideoFrames($videoDir, $viewport) {
   $startFrame = null;
   $lastFrame = 0;
-  $renderFrame = 0;
   $lastImage = null;
   $files = glob("$videoDir/image*.png");
   foreach ($files as $file) {
@@ -178,13 +167,7 @@ function ProcessVideoFrames($videoDir, $renderStart, $viewport) {
         $startFrame = $frame_ms;
         $lastImage = "$videoDir/ms_000000.jpg";
       } else {
-        if ($renderStart) {
-          if (!$renderFrame)
-            $renderFrame = $frame_ms;
-          $lastImage = "$videoDir/ms_" . sprintf('%06d', $frame_ms - $renderFrame + $renderStart) . '.jpg';
-        } else {
-          $lastImage = "$videoDir/ms_" . sprintf('%06d', $frame_ms - $startFrame) . '.jpg';
-        }
+        $lastImage = "$videoDir/ms_" . sprintf('%06d', $frame_ms - $startFrame) . '.jpg';
       }
       CopyAVIFrame($file, $lastImage);
       CreateHistogram($file, str_replace('.jpg', '.hist', $lastImage), $viewport);
@@ -201,7 +184,7 @@ function CopyAVIFrame($src, $dest) {
 function IsBlankAVIFrame($file) {
   $ret = false;
   $white = realpath('images/video_white.png');
-  $command = "convert  \"$white\" \\( \"$file\" -gravity Center -crop 50x50%+0+0 -resize 200x200! \\) miff:- | compare -metric AE - -fuzz 10% null: 2>&1";
+  $command = "convert  \"$white\" \\( \"$file\" -gravity Center -crop 50x33%+0+0 -resize 200x200! \\) miff:- | compare -metric AE - -fuzz 10% null: 2>&1";
   $differentPixels = shell_exec($command);
   if (isset($differentPixels) &&
       strlen($differentPixels) &&
@@ -221,7 +204,7 @@ function IsBlankAVIFrame($file) {
 function IsOrangeAVIFrame($file) {
   $ret = false;
   $orange = realpath('./images/video_orange.png');
-  $command = "convert  \"$orange\" \\( \"$file\" -gravity Center -crop 50x50%+0+0 -resize 200x200! \\) miff:- | compare -metric AE - -fuzz 10% null: 2>&1";
+  $command = "convert  \"$orange\" \\( \"$file\" -gravity Center -crop 50x33%+0+0 -resize 200x200! \\) miff:- | compare -metric AE - -fuzz 10% null: 2>&1";
   $differentPixels = shell_exec($command);
   if (isset($differentPixels) &&
       strlen($differentPixels) &&
@@ -503,10 +486,50 @@ function FindVideoCrop($videoFile, $videoDir) {
     if (IsOrangeAVIFrame($image) || IsBlankAVIFrame($image)) {
       $viewport = GetImageViewport($image);
       if (isset($viewport))
-        $crop = "crop=w={$viewport['width']}:h={$viewport['height']}:x={$viewport['x']}:y={$viewport['y']},";
+        $crop = "crop={$viewport['width']}:{$viewport['height']}:{$viewport['x']}:{$viewport['y']},";
     }
     unlink($image);
   }
   return $crop;
+}
+
+/**
+* Run the python version of the video extraction if it is available.
+* It is much faster for generating the histograms.
+* 
+* @param mixed $videoFile
+* @param mixed $videoDir
+* @param mixed $devToolsFile
+*/
+function PythonVisualMetrics($videoFile, $videoDir, $testPath, $run, $cached) {
+  return false;
+  $ret = false;
+  if (is_file(__DIR__ . '/visualmetrics.py')) {
+    $script = realpath(__DIR__ . '/visualmetrics.py');
+    $histograms = "$testPath/$run.$cached.histograms.json.gz";
+    $timeline = "$testPath/$run{$cachedText}_devtools.json.gz";
+    if (is_file($timeline))
+      $timeline = realpath($timeline);
+    else
+      unset($timeline);
+    touch($histograms);
+    if (is_file($histograms)) {
+      $histograms = realpath($histograms);
+      unlink($histograms);
+    } else {
+      unset($histograms);
+    }
+
+    $command = "python \"$script\" -i \"$videoFile\" -d \"$videoDir\" --orange --viewport --force --quality 75";
+    if (isset($histograms))
+      $command .= " --histogram \"$histograms\"";
+    if (isset($timeline))
+      $command .= " --timeline \"$timeline\"";
+    $command .= " 2>&1";
+    exec($command, $output, $result);
+    if (is_file("$videoDir/ms_000000.jpg"))
+      $ret = true;
+  }
+  return $ret;
 }
 ?>
