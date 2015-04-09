@@ -177,10 +177,7 @@ function RestoreArchive($id) {
                     $s3 = new S3(trim($settings['archive_s3_key']), trim($settings['archive_s3_secret']), false, trim($settings['archive_s3_server']));
                     $bucket = $settings['archive_s3_bucket'];
                     $file = "$id.zip";
-                    $response = $s3->getObject($bucket, $file, $zipfile);
-                    if (isset($_REQUEST['debug'])) {
-                      logMsg("$id: " . json_encode($response->error), './log/archive.log', true);
-                    }
+                    $s3->getObject($bucket, $file, $zipfile);
                 }
             }
             if (strlen($url)) {
