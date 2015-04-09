@@ -6,7 +6,7 @@ if(extension_loaded('newrelic')) {
   newrelic_add_custom_tracer('SBL_Check');
 }
 
-define('VIDEO_CODE_VERSION', 19);
+define('VIDEO_CODE_VERSION', 20);
 
 require_once(__DIR__ . '/logging.inc');
 
@@ -19,15 +19,14 @@ function GetTestPath($id)
 {
     $base = 'results';
     // see if it is a relay test (includes the key)
-    if( strpos($id, '.') !== false ) {
-        $parts = explode('.', $id);
-        if( count($parts) == 2 ) {
-            $key = trim($parts[0]);
-            if( strlen($key) ) {
-                $base .= "/relay/$key";
-                $id = trim($parts[1]);
-            }
-        }
+    $separator = strrpos($id, '.');
+    if ($separator !== false ) {
+      $key = trim(substr($id, 0, $separator));
+      $real_id = trim(substr($id, $separator + 1));
+      if (strlen($key) && strlen($real_id)) {
+        $id = $real_id;
+        $base .= "/relay/$key";
+      }
     }
 
     $testPath = "$base/$id";
@@ -2604,8 +2603,6 @@ function SBL_Check($url, &$message) {
       foreach($out as $line) {
         if (stripos($line, 'is blacklisted') !== false) {
           $ok = false;
-          $message = trim($line);
-          logMsg(trim($line), __DIR__ . '/log/sbl.log', true);
           break;
         }
       }
